@@ -4073,6 +4073,8 @@ ${scenario ? `场景：${scenario}` : '场景：未选择'}
  */
             function shareStoryCard(cardElement) {
                 console.log('=== 分享功能开始 ===');
+                const shareLandingUrl = 'https://my-ruguods-app-1.onrender.com';
+                const shareQrImageUrl = `https://api.qrserver.com/v1/create-qr-code/?size=220x220&margin=0&data=${encodeURIComponent(shareLandingUrl)}`;
                 
                 // 检查html2canvas
                 if (typeof html2canvas === 'undefined') {
@@ -4134,9 +4136,17 @@ ${scenario ? `场景：${scenario}` : '场景：未选择'}
                             <div class="share-signature">
                                 —— 来自「如果当时」· 平行宇宙生成器
                             </div>
-                            <div class="share-qrcode"></div>
+                            <div class="share-qrcode">
+                                <img
+                                    class="share-qrcode-image"
+                                    src="${shareQrImageUrl}"
+                                    alt="如果当时分享二维码"
+                                    crossorigin="anonymous"
+                                    referrerpolicy="no-referrer"
+                                />
+                            </div>
                             <div class="share-url">
-                                https://ruguo-dangshi.com
+                                ${shareLandingUrl}
                             </div>
                         </div>
                     </div>
@@ -4204,8 +4214,15 @@ ${scenario ? `场景：${scenario}` : '场景：未选择'}
                 };
                 
                 console.log('html2canvas配置:', html2canvasOptions);
-                
-                html2canvas(shareContainer, html2canvasOptions).then(canvas => {
+
+                let hasRenderedShareCanvas = false;
+                const renderShareCanvas = () => {
+                    if (hasRenderedShareCanvas) {
+                        return;
+                    }
+                    hasRenderedShareCanvas = true;
+
+                    html2canvas(shareContainer, html2canvasOptions).then(canvas => {
                     console.log('分享卡片图片生成成功，尺寸:', canvas.width, 'x', canvas.height);
                     
                     // 清理分享容器
@@ -4279,7 +4296,7 @@ ${scenario ? `场景：${scenario}` : '场景：未选择'}
                     shareBtn.disabled = true;
                     shareBtn.classList.add('disabled');
                     
-                }).catch(error => {
+                    }).catch(error => {
                     console.error('生成失败:', error);
                     
                     // 清理分享容器
@@ -4305,7 +4322,17 @@ ${scenario ? `场景：${scenario}` : '场景：未选择'}
                     
                     showToast(errorMessage);
                     console.error('分享功能详细错误:', error);
-                });
+                    });
+                };
+
+                const qrImage = shareContainer.querySelector('.share-qrcode-image');
+                if (qrImage && !qrImage.complete) {
+                    qrImage.addEventListener('load', renderShareCanvas, { once: true });
+                    qrImage.addEventListener('error', renderShareCanvas, { once: true });
+                    setTimeout(renderShareCanvas, 1500);
+                } else {
+                    renderShareCanvas();
+                }
             }
             
             // 创建图片预览浮层 - 简化版本
