@@ -1,3 +1,4 @@
+// deploy-check-20260418-2301
 
         // 检查html2canvas是否加载
         console.log('页面加载，检查html2canvas...');
