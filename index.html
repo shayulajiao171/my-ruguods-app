@@ -1,0 +1,395 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>如果当时 - 探索人生的另一种可能</title>
+    <!-- 字体引用 -->
+    <link href="https://fonts.googleapis.com/css2?family=ZCOOL+KuaiLe&family=Noto+Serif+SC:wght@400;500;600&family=Noto+Sans+SC:wght@300;400&display=swap" rel="stylesheet">
+    
+    <link rel="stylesheet" href="./style.css?v=20260418-1838">
+    
+        <!-- 移动端模态框简单修复 -->
+    <style>
+        @media (max-width: 768px) {
+            .reverse-modal.show {
+                display: flex !important;
+                align-items: flex-start !important;
+                justify-content: center !important;
+                padding: 0 !important;
+            }
+        }
+    </style>
+    
+    <!-- html2canvas for share feature -->
+        <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+    </head>
+<body>
+<div id="viewport-wrapper" style="height: 100vh; display: flex; flex-direction: column; overflow: hidden;">
+    <!-- 动态背景层 -->
+    <div class="background-layer" id="backgroundLayer">
+        <div class="noise-layer"></div>
+        <div class="film-grain-layer"></div>
+        <div class="halftone-layer"></div>
+        <div class="radial-layer"></div>
+        <div class="grid-layer"></div>
+        <div class="pixel-layer"></div>
+        <div class="glass-layer"></div>
+        <div class="vignette-layer"></div>
+    </div>
+    
+    <!-- 背景装饰性文字 -->
+    <div class="background-text">如果当时</div>
+    
+    <div class="container">
+        <header class="header">
+            <div class="header-content">
+                <div class="title-wrapper">
+                    <div class="main-title-row">
+                        <h1>如果当时</h1>
+                        <div class="header-action-group">
+                            <a href="#" class="collection-link" title="收藏馆">
+                                <span class="collection-icon">⭐</span>
+                                <span class="collection-text">收藏馆</span>
+                            </a>
+                            <button type="button" class="header-note-btn" id="headerNoteBtn">寄语✍️</button>
+                        </div>
+                    </div>
+                    <div class="subtitle">探索人生的另一种可能</div>
+                </div>
+            </div>
+        </header>
+        
+        <main>
+            <div class="input-card">
+                <form id="parallelForm">
+                    <!-- 出生年份选择 -->
+                    <div class="year-selector-container">
+                        <div class="year-label-row">
+                            <div class="year-label-column">
+                                <label class="year-selector-label">你是哪一年来到这个世界的？</label>
+                                <!-- 直接输入年份入口（放在标签下方） -->
+                                <span class="direct-input-text">或者，直接告诉我你的年份</span>
+                            </div>
+                            <!-- 性别选择器放在标签右侧 -->
+                            <div class="gender-symbols-container">
+                                <span class="gender-symbol" data-gender="male" title="男性">♂</span>
+                                <span class="gender-symbol" data-gender="female" title="女性">♀</span>
+                            </div>
+                        </div>
+                        <div class="year-selector-wrapper">
+                            <div class="year-selector" id="yearSelector">
+                                <!-- 年份选项将通过JavaScript动态生成 -->
+                            </div>
+                        </div>
+                        <!-- 时代注脚放在年份选择器下方 -->
+                        <div class="year-footnote" id="yearFootnote">
+                            <!-- 年份注脚将动态显示 -->
+                        </div>
+                    </div>
+                    
+                    <!-- 核心特质输入 -->
+                    <div class="form-group">
+                        <label for="traits">用三个词，形容你性格里最隐秘的角落</label>
+                        <input type="text" id="traits" name="traits" 
+                               placeholder="比如：心软的，睡前会想很多的，对声音很敏感的">
+                        <div class="hint">无论故事怎么重写，这三个词始终认得你。</div>
+                    </div>
+                    
+                    <!-- 性格特质提示词 - 手机优化版 -->
+                    <div class="smart-prompt-system">
+                        <div class="prompt-section">
+                            <div class="prompt-section-title">
+                                <span>性格特质</span>
+                                <span class="prompt-section-subtitle">点击添加，可多选</span>
+                            </div>
+                            
+                            <!-- 手机优化：单行排列，减少选项 -->
+                            <div class="prompt-tags-container mobile-optimized" data-group="all">
+                                <span class="prompt-tag" data-value="内向的">内向的</span>
+                                <span class="prompt-tag" data-value="外向的">外向的</span>
+                                <span class="prompt-tag" data-value="敏感的">敏感的</span>
+                                <span class="prompt-tag" data-value="理性的">理性的</span>
+                                <span class="prompt-tag" data-value="感性的">感性的</span>
+                                <span class="prompt-tag" data-value="务实的">务实的</span>
+                                <span class="prompt-tag" data-value="浪漫的">浪漫的</span>
+                                <span class="prompt-tag" data-value="爱冒险的">爱冒险的</span>
+                                <span class="prompt-tag" data-value="谨慎的">谨慎的</span>
+                                <span class="prompt-tag" data-value="独立的">独立的</span>
+                                <span class="prompt-tag" data-value="冲动的">冲动的</span>
+                                <span class="prompt-tag" data-value="乐观的">乐观的</span>
+                                <span class="prompt-tag" data-value="焦虑的">焦虑的</span>
+                                <span class="prompt-tag" data-value="平静的">平静的</span>
+                                <span class="prompt-tag" data-value="热情的">热情的</span>
+                            </div>
+                            
+                            <!-- 智能推荐 -->
+                            <div class="prompt-recommendation" id="traitsRecommendation" style="display: none;">
+                                根据你的选择，我们推荐：<strong id="recommendedTraits"></strong>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- 关键选择输入 -->
+                    <div class="form-group">
+                        <label for="choice">如果当时，我没有______，而是______。</label>
+                        <div class="choice-input-wrapper">
+                            <input type="text" id="choicePart1" name="choicePart1" 
+                                   placeholder="比如：回老家 / 选文科 / 说分手"
+                                   class="choice-input-part">
+                            <span class="choice-separator">，而是</span>
+                            <input type="text" id="choicePart2" name="choicePart2" 
+                                   placeholder="比如：去北京 / 学艺术 / 再等等"
+                                   class="choice-input-part">
+                        </div>
+                        <div class="hint">这是平行宇宙的分岔口，你内心的那个"如果"。</div>
+                    </div>
+                    
+                    <!-- 选择场景提示词 -->
+                    <div class="smart-prompt-system">
+                        <div class="prompt-section">
+                            <div class="prompt-section-title">
+                                <span>选择场景</span>
+                                <span class="prompt-section-subtitle">点击选项自动填充</span>
+                            </div>
+                            
+                            <!-- 选择场景 - 3行布局（每行2个） -->
+                            <div class="choice-prompts-container">
+                                <!-- 第1行 -->
+                                <div class="choice-prompt-tag" data-part1="听从父母的建议" data-part2="追随内心冲动">
+                                    <span class="choice-prompt-part" data-part="1">听从父母的建议</span>
+                                    <span class="choice-prompt-separator">→</span>
+                                    <span class="choice-prompt-part" data-part="2">追随内心冲动</span>
+                                </div>
+                                <div class="choice-prompt-tag" data-part1="选稳定的工作" data-part2="选热爱但未知的路">
+                                    <span class="choice-prompt-part" data-part="1">选稳定的工作</span>
+                                    <span class="choice-prompt-separator">→</span>
+                                    <span class="choice-prompt-part" data-part="2">选热爱但未知的路</span>
+                                </div>
+                                
+                                <!-- 第2行 -->
+                                <div class="choice-prompt-tag" data-part1="留在家乡发展" data-part2="去大城市闯荡">
+                                    <span class="choice-prompt-part" data-part="1">留在家乡发展</span>
+                                    <span class="choice-prompt-separator">→</span>
+                                    <span class="choice-prompt-part" data-part="2">去大城市闯荡</span>
+                                </div>
+                                <div class="choice-prompt-tag" data-part1="和那个人分手" data-part2="坚持那段感情">
+                                    <span class="choice-prompt-part" data-part="1">和那个人分手</span>
+                                    <span class="choice-prompt-separator">→</span>
+                                    <span class="choice-prompt-part" data-part="2">坚持那段感情</span>
+                                </div>
+                                
+                                <!-- 第3行 -->
+                                <div class="choice-prompt-tag" data-part1="考研/出国" data-part2="直接工作积累经验">
+                                    <span class="choice-prompt-part" data-part="1">考研/出国</span>
+                                    <span class="choice-prompt-separator">→</span>
+                                    <span class="choice-prompt-part" data-part="2">直接工作积累经验</span>
+                                </div>
+                                <div class="choice-prompt-tag" data-part1="创业尝试" data-part2="做自由职业者">
+                                    <span class="choice-prompt-part" data-part="1">创业尝试</span>
+                                    <span class="choice-prompt-separator">→</span>
+                                    <span class="choice-prompt-part" data-part="2">做自由职业者</span>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <!-- 操作按钮 -->
+                        <div class="prompt-actions">
+                            <div class="prompt-actions-note">每个岔路口，都站着一个你未曾谋面的自己。</div>
+                            <button type="button" class="prompt-action-btn clear-all" id="clearAllPrompts">
+                                清空所有选择
+                            </button>
+                        </div>
+                    </div>
+                
+                    <!-- 生成按钮 -->
+                    <button type="button" id="generateBtn" class="generate-btn">
+                        生成我的平行宇宙
+                    </button>
+                    
+                    <!-- 反向生成入口 -->
+                    <div class="reverse-generation-link">
+                        <a href="javascript:void(0)" id="reverseGenerateLink">
+                            如果我把一切都搞砸了呢？
+                        </a>
+                    </div>
+                </form>
+            </div>
+            
+            <!-- 等待文案区域 -->
+            <div id="waitingText" class="waiting-text" style="display: none;">
+                <!-- 等待文案将动态插入 -->
+            </div>
+            
+            <!-- 加载状态 -->
+            <div id="loading" class="loading">
+                正在翻阅平行宇宙档案...
+            </div>
+            
+            <!-- 结果展示区域 -->
+            <div id="resultContainer" class="result-container">
+                <div class="result-title">你的平行宇宙故事</div>
+                <div id="resultContent" class="result-content story-card">
+                    <!-- 故事内容将在这里显示 -->
+                </div>
+            </div>
+            
+            <!-- 错误提示区域 -->
+            <div id="errorContainer" class="error-message">
+                <!-- 错误信息将动态插入 -->
+            </div>
+            
+            <!-- 反向生成模态框 -->
+            <div id="reverseModal" class="reverse-modal">
+                <div class="reverse-modal-backdrop"></div>
+                <div class="reverse-modal-content">
+                    <button class="reverse-modal-close" id="reverseModalClose">×</button>
+                    <div class="reverse-result-title">另一种可能</div>
+                    <div id="reverseWaitingContent" class="waiting-content" style="display: none;">
+                        <div class="waiting-text-rotate" id="reverseWaitingText">正在生成……</div>
+                        <div class="progress-bar-container">
+                            <div class="progress-bar" id="reverseProgressBar"></div>
+                        </div>
+                    </div>
+                    <div id="reverseResultContent" class="reverse-result-content story-card reverse-story-card">
+                        <!-- 反向生成的故事内容将在这里显示 -->
+                    </div>
+                </div>
+            </div>
+            
+            <!-- 主生成模态框 -->
+            <div id="mainModal" class="reverse-modal">
+                <div class="reverse-modal-backdrop"></div>
+                <div class="reverse-modal-content">
+                    <button class="reverse-modal-close" id="mainModalClose">×</button>
+                    <div class="reverse-result-title">那边的你</div>
+                    <div id="mainWaitingContent" class="waiting-content" style="display: none;">
+                        <div class="waiting-text-rotate" id="mainWaitingText">正在生成……</div>
+                        <div class="progress-bar-container">
+                            <div class="progress-bar" id="mainProgressBar"></div>
+                        </div>
+                    </div>
+                    <div id="mainResultContent" class="reverse-result-content story-card reverse-story-card">
+                        <!-- 主生成的故事内容将在这里显示 -->
+                    </div>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    
+    <script src="./app.js?v=20260418-1838" defer></script>
+    
+    
+    <!-- 收藏馆面板 -->
+    <div class="collection-overlay" id="collectionOverlay"></div>
+    <div class="collection-panel" id="collectionPanel">
+        <div class="collection-header">
+            <h2 class="collection-title">收藏馆</h2>
+            <button class="collection-close" id="collectionClose">×</button>
+        </div>
+        <div class="collection-content" id="collectionContent">
+            <!-- 收藏列表将通过JavaScript动态生成 -->
+            <div class="empty-collection">
+                <p>抽屉里空空如也</p>
+                <p class="empty-hint">生成并收藏你的第一个平行宇宙吧</p>
+            </div>
+        </div>
+        <div class="collection-footer">
+            <p class="collection-footer-text">这里住着你偷偷留下的几个瞬间。</p>
+
+        </div>
+    </div>
+    
+    <!-- 收藏详情模态框（类似反向生成的弹出效果） -->
+    <div class="collection-detail-overlay" id="collectionDetailOverlay"></div>
+    <div class="collection-detail-modal" id="collectionDetailModal">
+        <div class="collection-detail-header">
+            <h3 class="collection-detail-title">收藏馆</h3>
+            <button class="collection-detail-close" id="collectionDetailClose">×</button>
+        </div>
+        <div class="collection-detail-content" id="collectionDetailContent">
+            <!-- 内容将通过JavaScript动态生成 -->
+        </div>
+        <div class="collection-detail-footer">
+            <button class="collection-detail-delete-btn" id="collectionDetailDelete">从抽屉移除</button>
+        </div>
+    </div>
+</div> <!-- viewport-wrapper -->
+    
+    <!-- 数字键盘模态框 -->
+    <div class="number-keyboard-overlay" id="numberKeyboardOverlay"></div>
+    <div class="number-keyboard-modal" id="numberKeyboardModal">
+        <div class="keyboard-header">
+            <h3 class="keyboard-title">输入你的出生年份</h3>
+            <button class="keyboard-close" id="keyboardClose">×</button>
+        </div>
+        <div class="keyboard-display">
+            <input type="text" class="year-input-display" id="yearInputDisplay" readonly placeholder="输入4位年份">
+            <div class="input-hint" id="inputHint">1950-2020</div>
+        </div>
+        <div class="keyboard-grid">
+            <button class="keyboard-key" data-key="1">1</button>
+            <button class="keyboard-key" data-key="2">2</button>
+            <button class="keyboard-key" data-key="3">3</button>
+            <button class="keyboard-key" data-key="4">4</button>
+            <button class="keyboard-key" data-key="5">5</button>
+            <button class="keyboard-key" data-key="6">6</button>
+            <button class="keyboard-key" data-key="7">7</button>
+            <button class="keyboard-key" data-key="8">8</button>
+            <button class="keyboard-key" data-key="9">9</button>
+            <button class="keyboard-key" data-key="0">0</button>
+            <button class="keyboard-key keyboard-backspace" id="keyboardBackspace">⌫</button>
+            <button class="keyboard-key keyboard-confirm" id="keyboardConfirm">确认</button>
+        </div>
+    </div>
+    
+    <!-- 删除确认模态框 -->
+    <div class="delete-confirm-modal" id="deleteConfirmModal">
+        <div class="delete-confirm-backdrop" id="deleteConfirmBackdrop"></div>
+        <div class="delete-confirm-content">
+            <h3 class="delete-confirm-title">确认删除</h3>
+            <p class="delete-confirm-message">确定要从抽屉里移除这个平行宇宙吗？</p>
+            <div class="delete-confirm-actions">
+                <button class="delete-confirm-btn cancel" id="deleteConfirmCancel">取消</button>
+                <button class="delete-confirm-btn confirm" id="deleteConfirmOk">确定</button>
+            </div>
+        </div>
+    </div>
+
+    
+    <!-- 纸短情长优化（极简安全版） -->
+    <script src="fix-expand-simple.js?v=20260418-1748" defer></script>
+    
+    <!-- 年份选择器修复 -->
+    <script src="fix-year-selector.js?v=20260418" defer></script>
+    
+    <!-- 模态框完全隔离修复（暂时禁用） -->
+    <!-- <script src="fix-modal-isolation.js" defer></script> -->
+
+    <!-- 主生成模态框沉浸式修复 -->
+    <script src="fix-modal-immersion.js?v=20260418-1815" defer></script>
+    
+    <!-- 反向生成模态框完全隔离修复（暂时禁用） -->
+    <!-- <script src="fix-reverse-modal-isolation.js" defer></script> -->
+    
+    <!-- 模态框状态完全重置修复 -->
+    <!-- <script src="fix-modal-state-reset.js" defer></script> -->
+    
+    <!-- 反向生成模态框沉浸式修复 -->
+    <script src="fix-reverse-modal-immersion.js?v=20260418-1815" defer></script>
+    
+    <!-- 键盘遮挡修复 -->
+    <script src="fix-keyboard-overlap.js?v=20260418-1820" defer></script>
+    
+    <!-- 私人生成模态框沉浸式修复（已禁用，使用新的等待模态框修复） -->
+    <!-- <script src="fix-personal-modal-immersion.js" defer></script> -->
+    
+    <!-- 私人生成等待模态框修复（最终版） -->
+    <!-- <script src="fix-personal-waiting-final.js" defer></script> -->
+    
+    <!-- 私人生成修复（反向生成 + 背景bug修复） -->
+    <script src="fix-personal-reverse-and-background.js?v=20260418" defer></script>
+
+</body>
+</html>
