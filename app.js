@@ -4553,26 +4553,75 @@ ${buildPersonalDetailDirectives(extraDetail)}
                 const shareLandingUrl = 'https://my-ruguods-app-1.onrender.com';
                 const shareText = `我刚在「如果当时」里，遇见了平行宇宙的自己。\n你也来看看，那边的你正在做什么吧！\n\n👉${shareLandingUrl}`;
 
+                function openManualShareSheet() {
+                    const existingSheet = document.querySelector('.manual-share-sheet');
+                    if (existingSheet) {
+                        existingSheet.remove();
+                    }
+
+                    const sheet = document.createElement('div');
+                    sheet.className = 'manual-share-sheet';
+                    sheet.innerHTML = `
+                        <div class="manual-share-backdrop"></div>
+                        <div class="manual-share-panel" role="dialog" aria-modal="true" aria-label="复制分享文案">
+                            <button type="button" class="manual-share-close" aria-label="关闭">×</button>
+                            <div class="manual-share-title">复制这段分享文案</div>
+                            <div class="manual-share-subtitle">你的浏览器没有允许自动复制，长按或全选下面文字即可。</div>
+                            <textarea class="manual-share-text" readonly>${shareText}</textarea>
+                        </div>
+                    `;
+
+                    document.body.appendChild(sheet);
+                    window.setTimeout(() => sheet.classList.add('show'), 10);
+
+                    const textarea = sheet.querySelector('.manual-share-text');
+                    const closeSheet = () => {
+                        sheet.classList.remove('show');
+                        window.setTimeout(() => sheet.remove(), 220);
+                    };
+
+                    sheet.querySelector('.manual-share-close').addEventListener('click', closeSheet);
+                    sheet.querySelector('.manual-share-backdrop').addEventListener('click', closeSheet);
+
+                    window.setTimeout(() => {
+                        if (textarea) {
+                            textarea.focus();
+                            textarea.select();
+                        }
+                    }, 120);
+                }
+
                 try {
+                    let copied = false;
+
                     if (navigator.clipboard && window.isSecureContext) {
                         await navigator.clipboard.writeText(shareText);
+                        copied = true;
                     } else {
                         const textarea = document.createElement('textarea');
                         textarea.value = shareText;
                         textarea.setAttribute('readonly', '');
                         textarea.style.position = 'fixed';
-                        textarea.style.top = '-1000px';
-                        textarea.style.left = '-1000px';
+                        textarea.style.top = '0';
+                        textarea.style.left = '0';
+                        textarea.style.opacity = '0';
+                        textarea.style.pointerEvents = 'none';
                         document.body.appendChild(textarea);
+                        textarea.focus();
                         textarea.select();
-                        document.execCommand('copy');
+                        textarea.setSelectionRange(0, textarea.value.length);
+                        copied = document.execCommand('copy');
                         textarea.remove();
                     }
 
-                    showToast('分享文案和链接已复制');
+                    if (copied) {
+                        showToast('分享文案和链接已复制');
+                    } else {
+                        openManualShareSheet();
+                    }
                 } catch (error) {
                     console.error('复制分享文案失败:', error);
-                    showToast('复制失败，请手动复制链接');
+                    openManualShareSheet();
                 }
             }
             
