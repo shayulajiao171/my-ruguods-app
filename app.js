@@ -1,4 +1,3 @@
-// deploy-check-20260418-2301
 
         // 检查html2canvas是否加载
         console.log('页面加载，检查html2canvas...');
@@ -186,8 +185,20 @@
         function getProxyApiUrl() {
           // 只允许HTTP/HTTPS协议
           if (window.location.protocol === 'http:' || window.location.protocol === 'https:') {
-            // 公网部署版：API 与页面同域，避免 HTTPS 页面请求 HTTP/3000 导致失败。
-            return '/api/deepseek';
+            // 动态获取API URL
+            // 如果当前主机是localhost，使用localhost
+            // 否则使用当前主机名（支持手机访问）
+            const currentHost = window.location.hostname;
+            const currentPort = window.location.port;
+            
+            // 如果是localhost或127.0.0.1，保持localhost
+            if (currentHost === 'localhost' || currentHost === '127.0.0.1') {
+              return 'http://localhost:3000/api/deepseek';
+            }
+            
+            // 否则使用当前主机名（手机访问时会是电脑的IP地址）
+            // 注意：代理服务器必须在同一台机器上运行
+            return 'http://' + currentHost + ':3000/api/deepseek';
           }
           
           // 如果是file://协议，应该已经被checkAccessProtocol()阻止
@@ -199,6 +210,43 @@
         
         // 收藏管理功能
         const COLLECTION_KEY = 'parallel_universe_collections';
+
+        function sanitizeCollectionStory(story) {
+            return String(story || '')
+                .replace(/<div class="card-personal-entry[\s\S]*?<\/div>/gi, '')
+                .replace(/<div class="card-actions[\s\S]*?<\/div>\s*<\/div>\s*<\/div>/gi, '</div></div>')
+                .replace(/<div class="card-actions[\s\S]*?<\/div>/gi, '')
+                .replace(/<button[^>]*card-action-btn[\s\S]*?<\/button>/gi, '')
+                .replace(/<span[^>]*action-separator[\s\S]*?<\/span>/gi, '')
+                .replace(/感觉不像你？多告诉我一些细节吧[。.]?/g, '')
+                .replace(/感觉不像你？/g, '')
+                .replace(/多告诉我一些细节吧[。.]?/g, '')
+                .replace(/保存图片/g, '')
+                .replace(/下载卡片/g, '')
+                .replace(/收藏这个平行宇宙/g, '')
+                .replace(/已放入抽屉/g, '')
+                .replace(/纸短情长/g, '')
+                .replace(/分享/g, '')
+                .replace(/^[\s·•｜|、，。]+|[\s·•｜|、，。]+$/gm, '')
+                .replace(/\n{3,}/g, '\n\n')
+                .trim();
+        }
+
+        function getStoryPartsFromActionButton(button) {
+            const cardRoot = button.closest('.card-content') ||
+                button.closest('.reverse-story-card') ||
+                button.closest('.parallel-card') ||
+                button.closest('.story-card');
+
+            const storyElement = cardRoot ? cardRoot.querySelector('.story-body') : null;
+            const endingNoteElement = cardRoot ? cardRoot.querySelector('.story-ending, .ending-note') : null;
+
+            return {
+                cardRoot,
+                storyText: sanitizeCollectionStory(storyElement ? (storyElement.textContent || storyElement.innerText || '') : ''),
+                endingNote: endingNoteElement ? (endingNoteElement.textContent || '') : ''
+            };
+        }
         
         // 获取所有收藏
 
@@ -214,7 +262,7 @@
             return collections.map(item => {
                 // 创建一个新对象，确保所有必需字段都存在
                 const normalized = {
-                    story: item.story || '',
+                    story: sanitizeCollectionStory(item.story || ''),
                     endingNote: item.endingNote || '',
                     year: item.year || '2000',
                     traits: item.traits || '',
@@ -319,7 +367,7 @@
             
             // 准备收藏数据
             const collectionData = {
-                story: story,
+                story: sanitizeCollectionStory(story),
                 endingNote: endingNote,
                 year: birthYear,
                 traits: traits,
@@ -341,8 +389,9 @@
         // 通过故事内容查找收藏项
         function findCollectionByStory(storyText) {
             const collections = getCollections();
+            const cleanedStoryText = sanitizeCollectionStory(storyText);
             // 查找故事内容匹配的收藏项
-            return collections.find(item => item.story === storyText);
+            return collections.find(item => sanitizeCollectionStory(item.story) === cleanedStoryText);
         }
 
         // 删除收藏
@@ -545,18 +594,7 @@
         }
 
         function formatCollectionStory(story) {
-            const source = String(story || '');
-            const cleanedSource = source
-                .replace(/<div class="card-actions[\s\S]*?<\/div>\s*<\/div>\s*<\/div>/gi, '</div></div>')
-                .replace(/<div class="card-actions[\s\S]*?<\/div>/gi, '')
-                .replace(/<button[^>]*card-action-btn[\s\S]*?<\/button>/gi, '')
-                .replace(/<span[^>]*action-separator[\s\S]*?<\/span>/gi, '')
-                .replace(/收藏这个平行宇宙/g, '')
-                .replace(/纸短情长/g, '')
-                .replace(/分享/g, '')
-                .replace(/^[\s·•｜|、，。]+|[\s·•｜|、，。]+$/gm, '')
-                .replace(/\n{3,}/g, '\n\n')
-                .trim();
+            const cleanedSource = sanitizeCollectionStory(story);
 
             if (cleanedSource.includes('<') && cleanedSource.includes('>')) {
                 return cleanedSource;
@@ -772,130 +810,146 @@
             const themes = {
                 // 1950s-1959s：暖棕黄底 + 粗颗粒噪点 + 暗角 + 衬线字体 + 暗红点缀
                 '1950s': {
-                    bgColor: '#F5E6CA',
-                    textColor: '#5C4033',
-                    accentColor: '#8B0000',
+                    bgColor: 'linear-gradient(180deg, #f4ebdb 0%, #e6d3bb 52%, #d6b99a 100%)',
+                    textColor: '#5f4636',
+                    accentColor: '#9d5c49',
                     fontFamily: "'STKaiti', 'KaiTi', '楷体', 'SimKai', '华文楷体', serif",
-                    textShadow: '0 0 0.5px rgba(0,0,0,0.2)',
+                    textShadow: '0 0 0.4px rgba(78,58,41,0.12)',
                     backdropFilter: 'none',
-                    noiseOpacity: 0.8,
+                    noiseOpacity: 0.22,
                     gridOpacity: 0,
-                    vignetteOpacity: 0.4,
+                    vignetteOpacity: 0.18,
                     halftoneOpacity: 0,
-                    radialOpacity: 0,
+                    radialOpacity: 0.08,
                     pixelOpacity: 0,
                     glassOpacity: 0,
                     // 卡片变量
-                    cardBg: '#f8f3e9',
-                    cardBorder: 'rgba(210, 180, 140, 0.3)',
-                    cardContentBg: 'rgba(255, 248, 235, 0.9)',
-                    cardContentBorder: 'rgba(255, 255, 255, 0.7)'
+                    cardBg: 'rgba(252, 247, 238, 0.18)',
+                    cardBorder: 'rgba(255, 245, 232, 0.26)',
+                    cardContentBg: 'rgba(255, 249, 241, 0.16)',
+                    cardContentBorder: 'rgba(255, 255, 255, 0.24)'
                 },
                 // 1960s-1969s：暖米色 + 半调波点纹理 + 衬线字体 + 橄榄绿点缀
                 '1960s': {
-                    bgColor: '#F8F4E6',
-                    textColor: '#4A4A3C',
-                    accentColor: '#556B2F',
+                    bgColor: 'linear-gradient(180deg, #f8f1e2 0%, #e8dcc4 48%, #d4cfbf 100%)',
+                    textColor: '#4f4a40',
+                    accentColor: '#7c8761',
                     fontFamily: "'STKaiti', 'KaiTi', '楷体', 'SimKai', '华文楷体', serif",
-                    textShadow: '0 0 0.3px rgba(0,0,0,0.1)',
+                    textShadow: '0 0 0.2px rgba(61,57,51,0.08)',
                     backdropFilter: 'none',
-                    noiseOpacity: 0,
+                    noiseOpacity: 0.08,
                     gridOpacity: 0,
-                    vignetteOpacity: 0,
-                    halftoneOpacity: 0.3,
-                    radialOpacity: 0,
+                    vignetteOpacity: 0.08,
+                    halftoneOpacity: 0.08,
+                    radialOpacity: 0.06,
                     pixelOpacity: 0,
-                    glassOpacity: 0
+                    glassOpacity: 0,
+                    cardBg: 'rgba(251, 247, 240, 0.16)',
+                    cardBorder: 'rgba(255, 251, 244, 0.24)',
+                    cardContentBg: 'rgba(255, 252, 247, 0.14)',
+                    cardContentBorder: 'rgba(255, 255, 255, 0.2)'
                 },
                 // 1970s-1979s：橙褐底 + 放射状渐变 + 衬线字体 + 芥末黄点缀
                 '1970s': {
-                    bgColor: '#D2691E',
-                    textColor: '#FFF8DC',
-                    accentColor: '#FFD700',
+                    bgColor: 'linear-gradient(180deg, #dbc2a0 0%, #b78f68 48%, #7f6a57 100%)',
+                    textColor: '#f8f0e5',
+                    accentColor: '#d1a35d',
                     fontFamily: "'STKaiti', 'KaiTi', '楷体', 'SimKai', '华文楷体', serif",
-                    textShadow: '0 0 1px rgba(0,0,0,0.3)',
+                    textShadow: '0 1px 2px rgba(51,32,18,0.16)',
                     backdropFilter: 'none',
-                    noiseOpacity: 0,
+                    noiseOpacity: 0.14,
                     gridOpacity: 0,
-                    vignetteOpacity: 0,
+                    vignetteOpacity: 0.16,
                     halftoneOpacity: 0,
-                    radialOpacity: 0.4,
+                    radialOpacity: 0.18,
                     pixelOpacity: 0,
-                    glassOpacity: 0
+                    glassOpacity: 0,
+                    cardBg: 'rgba(255, 247, 235, 0.14)',
+                    cardBorder: 'rgba(255, 242, 224, 0.22)',
+                    cardContentBg: 'rgba(255, 248, 238, 0.12)',
+                    cardContentBorder: 'rgba(255, 255, 255, 0.18)'
                 },
                 // 1980s-1989s：洋红/青双色渐变 + 网格扫描线 + 打字机风格字体 + 亮蓝/粉点缀
                 '1980s': {
-                    bgColor: 'linear-gradient(135deg, #FF00FF 0%, #00FFFF 100%)',
-                    textColor: '#000000',
-                    accentColor: '#00BFFF',
+                    bgColor: 'linear-gradient(180deg, #e6edf3 0%, #d8e2ea 48%, #c3d0d9 100%)',
+                    textColor: '#30424d',
+                    accentColor: '#90a7b7',
                     fontFamily: "'Courier New', Courier, monospace",
-                    textShadow: 'none',
+                    textShadow: '0 1px 0 rgba(255,255,255,0.18)',
                     backdropFilter: 'none',
-                    noiseOpacity: 0,
-                    gridOpacity: 0.6,
-                    vignetteOpacity: 0,
+                    noiseOpacity: 0.03,
+                    gridOpacity: 0.06,
+                    vignetteOpacity: 0.04,
                     halftoneOpacity: 0,
-                    radialOpacity: 0,
+                    radialOpacity: 0.04,
                     pixelOpacity: 0,
-                    glassOpacity: 0
+                    glassOpacity: 0,
+                    cardBg: 'rgba(248, 251, 255, 0.15)',
+                    cardBorder: 'rgba(241, 247, 252, 0.24)',
+                    cardContentBg: 'rgba(252, 254, 255, 0.14)',
+                    cardContentBorder: 'rgba(255, 255, 255, 0.2)'
                 },
                 // 1990s-1999s：暖黄底 + 中颗粒噪点（银盐感） + 宋体/仿宋（边缘微微模糊） + 湖蓝点缀
                 '1990s': {
-                    bgColor: '#FFE8C8',
-                    textColor: '#2E2A28',
-                    accentColor: '#4682B4',
+                    bgColor: 'linear-gradient(180deg, #f7ead8 0%, #ead7c2 46%, #d8c8bf 100%)',
+                    textColor: '#342f2c',
+                    accentColor: '#6f93b3',
                     fontFamily: "'SimSun', '宋体', 'STSong', '华文宋体', serif",
-                    textShadow: '0 0 0.3px rgba(0,0,0,0.1)',
+                    textShadow: '0 0 0.3px rgba(0,0,0,0.08)',
                     backdropFilter: 'none',
-                    noiseOpacity: 0.5,
+                    noiseOpacity: 0.16,
                     gridOpacity: 0,
-                    vignetteOpacity: 0,
+                    vignetteOpacity: 0.08,
                     halftoneOpacity: 0,
-                    radialOpacity: 0,
+                    radialOpacity: 0.06,
                     pixelOpacity: 0,
                     glassOpacity: 0,
                     // 卡片变量
-                    cardBg: '#fff8f0',
-                    cardBorder: 'rgba(255, 228, 196, 0.4)',
-                    cardContentBg: 'rgba(255, 252, 245, 0.9)',
-                    cardContentBorder: 'rgba(255, 255, 255, 0.7)'
+                    cardBg: 'rgba(255, 249, 242, 0.16)',
+                    cardBorder: 'rgba(255, 244, 232, 0.24)',
+                    cardContentBg: 'rgba(255, 252, 247, 0.15)',
+                    cardContentBorder: 'rgba(255, 255, 255, 0.22)'
                 },
                 // 2000s-2009s：高饱和青或银灰底 + 像素网格 + 宋体清晰 + 银灰/橙点缀
                 '2000s': {
-                    bgColor: '#E0FFFF',
-                    textColor: '#2F4F4F',
-                    accentColor: '#C0C0C0',
+                    bgColor: 'linear-gradient(180deg, #f2d2c3 0%, #d9e9dc 48%, #a9d1cf 100%)',
+                    textColor: '#314b4e',
+                    accentColor: '#cf6f6f',
                     fontFamily: "'SimSun', '宋体', 'STSong', '华文宋体', serif",
                     textShadow: 'none',
                     backdropFilter: 'none',
-                    noiseOpacity: 0,
+                    noiseOpacity: 0.03,
                     gridOpacity: 0,
-                    vignetteOpacity: 0,
+                    vignetteOpacity: 0.04,
                     halftoneOpacity: 0,
-                    radialOpacity: 0,
-                    pixelOpacity: 0.4,
-                    glassOpacity: 0
+                    radialOpacity: 0.05,
+                    pixelOpacity: 0.06,
+                    glassOpacity: 0,
+                    cardBg: 'rgba(255, 252, 245, 0.3)',
+                    cardBorder: 'rgba(255, 255, 255, 0.42)',
+                    cardContentBg: 'rgba(255, 255, 250, 0.24)',
+                    cardContentBorder: 'rgba(255, 255, 255, 0.36)'
                 },
                 // 2010s-2020s：冷白底 + 毛玻璃效果 + 纤细无衬线字体 + 薄荷绿/浅灰点缀
                 '2010s': {
-                    bgColor: '#F8FAFC',
-                    textColor: '#2D3748',
-                    accentColor: '#98FB98',
+                    bgColor: 'linear-gradient(180deg, #f2f4f7 0%, #e7ecef 52%, #dde3e8 100%)',
+                    textColor: '#313845',
+                    accentColor: '#9da8b6',
                     fontFamily: "-apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei', sans-serif",
                     textShadow: 'none',
-                    backdropFilter: 'blur(8px)',
-                    noiseOpacity: 0,
+                    backdropFilter: 'blur(10px)',
+                    noiseOpacity: 0.02,
                     gridOpacity: 0,
-                    vignetteOpacity: 0,
+                    vignetteOpacity: 0.03,
                     halftoneOpacity: 0,
-                    radialOpacity: 0,
+                    radialOpacity: 0.04,
                     pixelOpacity: 0,
-                    glassOpacity: 0.7,
+                    glassOpacity: 0.24,
                     // 卡片变量
-                    cardBg: 'rgba(255, 255, 255, 0.12)',
-                    cardBorder: 'rgba(255, 255, 255, 0.2)',
-                    cardContentBg: 'rgba(255, 255, 255, 0.08)',
-                    cardContentBorder: 'rgba(255, 255, 255, 0.15)'
+                    cardBg: 'rgba(255, 255, 255, 0.14)',
+                    cardBorder: 'rgba(255, 255, 255, 0.24)',
+                    cardContentBg: 'rgba(255, 255, 255, 0.12)',
+                    cardContentBorder: 'rgba(255, 255, 255, 0.2)'
                 }
             };
             
@@ -1378,13 +1432,22 @@
             let currentInput = '';
             
             // 打开键盘
-            directInputText.addEventListener('click', function() {
+            function openYearKeyboard() {
                 keyboardOverlay.classList.add('show');
                 keyboardModal.classList.add('show');
                 currentInput = '';
                 yearDisplay.value = '';
                 updateConfirmButton();
                 updateHint();
+            }
+
+            directInputText.addEventListener('click', openYearKeyboard);
+
+            directInputText.addEventListener('keydown', function(event) {
+                if (event.key === 'Enter' || event.key === ' ') {
+                    event.preventDefault();
+                    openYearKeyboard();
+                }
             });
             
             // 关闭键盘
@@ -1651,6 +1714,11 @@
             let isAutoCenteringYear = false;
             let isYearPointerDown = false;
             let yearSettleTimeout = null;
+            let lastPreviewYear = null;
+            let lastBackgroundYear = null;
+            let pendingBackgroundYear = null;
+            let backgroundFrame = null;
+            let backgroundSettleTimeout = null;
 
             function getClosestYearToCenter() {
                 const yearItems = document.querySelectorAll('.year-item');
@@ -1706,6 +1774,34 @@
                 }, behavior === 'smooth' ? 260 : 80);
             }
 
+            function scheduleBackgroundLayer(year, force = false) {
+                pendingBackgroundYear = year;
+
+                if (backgroundFrame !== null) {
+                    return;
+                }
+
+                backgroundFrame = window.requestAnimationFrame(() => {
+                    backgroundFrame = null;
+                    if (force || pendingBackgroundYear !== lastBackgroundYear) {
+                        updateBackgroundLayer(pendingBackgroundYear);
+                        lastBackgroundYear = pendingBackgroundYear;
+                    }
+                });
+            }
+
+            function previewYearSelection(year, forceBackground = false) {
+                if (year !== lastPreviewYear) {
+                    applySelectedYear(year);
+                    lastPreviewYear = year;
+                }
+
+                if (forceBackground) {
+                    updateYearFootnote(year);
+                    scheduleBackgroundLayer(year, forceBackground);
+                }
+            }
+
             function settleYearSelection() {
                 window.clearTimeout(yearSettleTimeout);
                 yearSettleTimeout = window.setTimeout(() => {
@@ -1714,9 +1810,7 @@
                     }
 
                     const settledYear = getClosestYearToCenter();
-                    applySelectedYear(settledYear);
-                    updateYearFootnote(settledYear);
-                    updateBackgroundLayer(settledYear);
+                    previewYearSelection(settledYear, true);
                     centerYearItem(settledYear, 'auto');
                 }, 140);
             }
@@ -1741,9 +1835,7 @@
                 // 点击选择年份
                 yearItem.addEventListener('click', function() {
                     const selectedYear = parseInt(this.dataset.year);
-                    applySelectedYear(selectedYear);
-                    updateYearFootnote(selectedYear);
-                    updateBackgroundLayer(selectedYear);
+                    previewYearSelection(selectedYear, true);
                     centerYearItem(selectedYear, 'smooth');
                 });
                 
@@ -1760,7 +1852,7 @@
             }, 100);
             
             // 初始化背景层（默认2000年）
-            updateBackgroundLayer(2000);
+            previewYearSelection(2000, true);
             
             // 确保2000年居中显示
             initYearSelector();
@@ -1769,16 +1861,23 @@
             yearSelector.addEventListener('touchstart', function() {
                 isYearPointerDown = true;
                 window.clearTimeout(yearSettleTimeout);
+                window.clearTimeout(backgroundSettleTimeout);
             }, { passive: true });
 
             yearSelector.addEventListener('touchend', function() {
                 isYearPointerDown = false;
                 settleYearSelection();
+                window.clearTimeout(backgroundSettleTimeout);
+                backgroundSettleTimeout = window.setTimeout(() => {
+                    const settledYear = getClosestYearToCenter();
+                    previewYearSelection(settledYear, true);
+                }, 160);
             }, { passive: true });
 
             yearSelector.addEventListener('mousedown', function() {
                 isYearPointerDown = true;
                 window.clearTimeout(yearSettleTimeout);
+                window.clearTimeout(backgroundSettleTimeout);
             });
 
             window.addEventListener('mouseup', function() {
@@ -1788,13 +1887,25 @@
 
                 isYearPointerDown = false;
                 settleYearSelection();
+                window.clearTimeout(backgroundSettleTimeout);
+                backgroundSettleTimeout = window.setTimeout(() => {
+                    const settledYear = getClosestYearToCenter();
+                    previewYearSelection(settledYear, true);
+                }, 160);
             });
 
             yearSelector.addEventListener('scroll', function() {
                 const closestYear = getClosestYearToCenter();
-                applySelectedYear(closestYear);
-                updateYearFootnote(closestYear);
-                updateBackgroundLayer(closestYear);
+                previewYearSelection(closestYear, false);
+
+                window.clearTimeout(backgroundSettleTimeout);
+                backgroundSettleTimeout = window.setTimeout(() => {
+                    if (isYearPointerDown) {
+                        return;
+                    }
+                    const settledYear = getClosestYearToCenter();
+                    previewYearSelection(settledYear, true);
+                }, 220);
 
                 window.clearTimeout(yearScrollTimeout);
                 yearScrollTimeout = window.setTimeout(() => {
@@ -1862,6 +1973,34 @@
             const resultContainer = document.getElementById('resultContainer');
             const resultContent = document.getElementById('resultContent');
             const errorContainer = document.getElementById('errorContainer');
+
+            function requireGenderSelection() {
+                const selectedGenderSymbol = document.querySelector('.gender-symbol.selected');
+                if (selectedGenderSymbol) {
+                    return selectedGenderSymbol.dataset.gender;
+                }
+
+                const genderContainer = document.querySelector('.gender-symbols-container');
+                const yearContainer = genderContainer ? genderContainer.closest('.year-selector-container') : null;
+                const targetElement = yearContainer || genderContainer;
+
+                if (targetElement && targetElement.scrollIntoView) {
+                    targetElement.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                }
+
+                if (genderContainer) {
+                    genderContainer.classList.remove('gender-require-attention');
+                    // Restart the attention animation if the user taps repeatedly.
+                    void genderContainer.offsetWidth;
+                    genderContainer.classList.add('gender-require-attention');
+                    window.setTimeout(() => {
+                        genderContainer.classList.remove('gender-require-attention');
+                    }, 1700);
+                }
+
+                showError('请选择性别，这样故事会更贴近你', targetElement);
+                return null;
+            }
             
             // 生成按钮点击事件
             generateBtn.addEventListener('click', async function() {
@@ -1873,12 +2012,13 @@
                 const choicePart2 = document.getElementById('choicePart2').value;
                 
                 // 获取性别选择
-                const selectedGenderSymbol = document.querySelector('.gender-symbol.selected');
-                const gender = selectedGenderSymbol ? selectedGenderSymbol.dataset.gender : null;
+                const gender = requireGenderSelection();
+                if (!gender) {
+                    return;
+                }
                 
                 // 获取场景选择
-                const selectedScenario = document.querySelector('.prompt-tag.selected');
-                const scenario = selectedScenario ? selectedScenario.textContent.trim() : null;
+                const scenario = getSelectedChoiceScenario();
                 
                 // 增强表单验证与清理
                 // 1. 对所有输入进行trim清理
@@ -1955,12 +2095,16 @@
                 const choicePart2 = document.getElementById('choicePart2').value.trim();
                 
                 // 获取性别选择
-                const selectedGenderSymbol = document.querySelector('.gender-symbol.selected');
-                const gender = selectedGenderSymbol ? selectedGenderSymbol.dataset.gender : null;
+                const gender = requireGenderSelection();
+                if (!gender) {
+                    this.classList.remove('disabled');
+                    this.style.pointerEvents = 'auto';
+                    this.style.opacity = '1';
+                    return;
+                }
                 
                 // 获取场景选择
-                const selectedScenario = document.querySelector('.prompt-tag.selected');
-                const scenario = selectedScenario ? selectedScenario.textContent.trim() : null;
+                const scenario = getSelectedChoiceScenario();
                 
                 // 组合关键选择
                 let choice = '';
@@ -2427,6 +2571,64 @@
 - 如果“${chosenPath}”是一个具体行为（例如去考试、去见某个人、说出口、离开某地），正文必须自然体现这个行为之后带来的生活场景或后果。`;
             }
 
+            function getSelectedChoiceScenario() {
+                const selectedChoiceTag = document.querySelector('.choice-prompt-tag.selected');
+                if (!selectedChoiceTag) {
+                    return null;
+                }
+
+                const part1 = selectedChoiceTag.getAttribute('data-part1') || '';
+                const part2 = selectedChoiceTag.getAttribute('data-part2') || '';
+                return part1 && part2 ? `没有${part1}，而是${part2}` : selectedChoiceTag.textContent.trim();
+            }
+
+            function buildReaderFitDirectives(modeLabel) {
+                return `【先在心里完成，不要输出】
+- 先把用户还原成一个具体的人：年龄段、可能的城市/居住状态、工作或学习压力、关系状态、消费能力、一个日常习惯。
+- 再判断关键选择会改变哪三件事：每天在哪里醒来、靠什么生活、和谁的关系变近或变远。
+- 如果用户输入很少，可以谨慎补全合理细节，但必须来自“出生年份 + 性格特质 + 关键选择 + 场景”，不要凭空写成成功学、旅行梦或悬浮职业。
+- 写作优先级：像本人 > 看得懂 > 具体 > 有余味。文采只能排在最后。
+
+【${modeLabel}可读性要求】
+- 前三句必须让用户看懂：这个人现在在哪里、正在做什么、这条平行选择带来了什么现实变化。
+- 每段都要有一个能落地的现实信息，例如房间、通勤、收入压力、工作内容、手机消息、家人朋友、作息习惯。
+- 少写“命运、宇宙、光、影、远方、答案、遗憾”这类抽象词；多写可看见、可触摸、可发生的事。
+- 不要连续抒情，不要让用户读完还不知道这个人到底在过什么生活。`;
+            }
+
+            function buildAgeEraDirectives(year) {
+                const birthYear = Number(year) || 2000;
+                const currentAge = 2026 - birthYear;
+                const age16 = birthYear + 16;
+                const age20 = birthYear + 20;
+                const age30 = birthYear + 30;
+                const age40 = birthYear + 40;
+
+                return `【年龄与年代代入要求】
+- 当前年份按2026年计算，用户出生于${birthYear}年，当前年龄约${currentAge}岁。故事里的工作、关系、居住状态、说话方式、压力来源，必须符合这个年龄，不要把26岁写成56岁，也不要把56岁写成刚毕业。
+- 用户16岁大约在${age16}年前后。请自然带入一个这个年龄段会记得的时代细节，尤其是当时流行、后来逐渐消失或变得罕见的东西；只需轻轻一笔，不要写成怀旧清单。
+- 如果用户当前年龄约30岁以上，请优先补入20岁阶段（约${age20}年前后）的时代细节，例如当时流行的手机、音乐、社交软件、校园/职场习惯、城市生活方式。
+- 不要根据出生年份擅自推断“哪一年大学毕业、工作几年、结婚几年、孩子几岁”等具体人生节点，除非用户明确提供。可以写“20岁前后”“大学或刚进社会那几年”“那几年身边人陆续开始工作”这类模糊但真实的表达。
+- 如果需要提到${age20}年前后，只能作为时代背景或年龄段氛围，不要写成“${age20}年大学毕业/入职/结婚”等确定事实。
+- 如果用户当前年龄约40岁以上，可以再自然带入30岁阶段（约${age30}年前后）的社会和生活细节，例如房价、单位/行业变化、育儿/婚恋/职业转折、支付方式或交通变化。
+- 如果用户当前年龄约50岁以上，可以轻轻带到40岁阶段（约${age40}年前后）的生活变化，例如家庭责任、身体感受、职业位置、旧物被替换、新技术进入生活。
+- 如果用户出生在2015年以后，当前年龄还小，不要硬写成年人的职业和婚恋。可以更戏剧、更想象一点，但仍要符合孩子/青少年的现实：学校、家人、兴趣、手机和平板、同学关系、被大人安排的选择、未来想象。
+- 正文至少要出现一个符合用户年龄的时代锚点，但最多两三个，不要密集堆砌。
+- 年代细节必须服务于“这个人真的活在这个年纪”，不要为了炫知识硬塞。`;
+            }
+
+            function buildPersonalDetailDirectives(extraDetail) {
+                return `【补充细节最高优先级】
+- 用户在“补充细节”里写下的内容，必须被当作当前事实，而不是灵感素材。不得改写、跳过或反向解释。
+- 如果补充细节里出现明确状态、身份、关系、地点、阶段、时间、年龄、正在做的事、还没有完成的事，正文必须沿用这个状态，不能写成相反结果。
+- 如果补充细节里出现明确年龄，例如“30岁”“快40了”，该年龄优先于出生年份推算；出生年份只用于补充年代记忆，不得覆盖用户亲自写下的年龄。
+- 如果补充细节里出现长期经历或反复发生的事，正文必须体现它带来的现实影响：作息、钱、关系、自我评价、身体疲惫或生活节奏。
+- 如果补充细节与“关键选择”或之前生成的故事发生冲突，私人版本必须以补充细节为准。关键选择只能作为背景中的旧假设、曾经想象过的另一条路，不能覆盖用户刚刚补充的真实状态。
+- 如果补充细节否定了某个结果，例如“其实还没工作”“还在读书”“没有结婚”“已经离开那里”“不是这个行业”，正文必须写否定后的状态，不得继续沿用被否定的结果。
+- 私人版本至少要有两处明显来自补充细节的内容：一处是客观事实/状态，一处是由它带来的生活细节或情绪后果。
+- 处理方法：先抽取补充细节里的“事实词”和“限制词”，例如年龄、身份、地点、关系、进行中/未完成/反复多年/刚刚发生等；再围绕这些事实写当前生活，不能跳到事实已经结束后的阶段。`;
+            }
+
 
 /**
  * buildSystemPrompt
@@ -2438,7 +2640,7 @@
  * @returns {Promise|void}
  */
             function buildSystemPrompt(year, traits, choice, gender = null, scenario = null) {
-                return `你是一位擅长写"人生切片"的作家，风格介于村上春树和双雪涛之间，平淡中带着微妙的质感，文字有留白和呼吸感。
+                return `你是一位非常擅长写“像真实人生一样”的平行人生切片作者。你的第一目标不是文采，而是让用户读完觉得：“这真的像我可能会过上的另一种生活。”
 
 现在，请为一个用户生成一个"平行宇宙人生切片"。
 
@@ -2450,18 +2652,24 @@ ${describeChoiceDirection(choice)}
 ${gender ? `性别：${gender === 'male' ? '男性' : '女性'}` : '性别：未选择'}
 ${scenario ? `场景：${scenario}` : '场景：未选择'}
 
+${buildReaderFitDirectives('主版本')}
+
+${buildAgeEraDirectives(year)}
+
 【创作要求】
 - 不要在故事正文开头写"2026年"或任何年份数字。时间背景已经通过卡片标签展示，正文直接从场景描写开始。例如第一句直接写"你关掉台灯，窗外的城市安静下来。"而不是"2026年，你关掉台灯……"
-- 根据出生年份，准确锚定时代背景。计算用户20岁、30岁时分别处于什么年代，故事发生的时间点默认为用户当前年龄或稍早几年。
+- 根据出生年份，准确锚定时代背景。故事发生的年龄、压力、关系和生活状态必须符合用户当前年龄。
 【性别细节要求】
 根据用户选择的性别（若已选），在细节描写上可以轻微倾向该性别常见的中性细节（如男性可选：袖口纽扣、下巴线条；女性可选：耳边碎发、指节弧度）。若未选性别，保持完全中性。无论何种情况，不使用"高跟鞋""领带"等强烈性别标签物品。
 时间锚点要求：故事发生的时间应为当前年份（2026年）前后，主角年龄 = 2026 - 出生年份。场景需体现"此时此刻"的平行生活。
 - 根据关键选择，设定一个与用户现实选择不同的职业或生活状态。
 - 关键选择中“而是”后面的内容是本故事的既定事实，必须优先写它造成的后续生活，不要把“没有”后面的内容写成故事主线。
 - 核心特质必须贯穿始终，让用户读完后觉得"这确实是我可能会成为的样子"。
-- 生成一个300-450字左右的人生切片。不是完整传记，而是某一个具体时刻的场景描写，像电影中的一个镜头。
-- 必须包含：一个具体的空间（如：北京的地下室、深圳的城中村、大理的院子、上海的老式写字楼、老家县城的阳台）、一个微小的动作或物品细节（如：手指上的墨水、桌上凉掉的咖啡、窗外传来的特定声音、袖口磨起的毛球）、一句若隐若现的内心独白（不要直接写"她想"，而是融入叙述中）。
-- ${gender ? `用第三人称"${gender === 'male' ? '他' : '她'}"写作。` : '用第二人称"你"写作。'}结尾不总结，不说道理，留一句有画面感的、微微悬停的句子。
+- 生成一个360-480字左右的人生切片。不是完整传记，而是一个很具体、很真实、普通人能读进去的当下片段。
+- 必须包含：一个具体的空间、一个具体的生活动作、一个能看出状态的小细节、一个能看出关系或处境的瞬间。
+- 优先写“日常现实感”，例如工作、居住、通勤、感情、家庭、朋友、金钱压力、生活习惯，而不是优先写漂亮句子。
+- 语言自然克制，像朋友认真描述“另一个你现在过得怎么样”，不要像散文，不要堆砌比喻。句子尽量短一点，段落之间要有清楚的生活推进。
+- 用第二人称"你"写作。结尾可以轻轻停住，但不要为了文艺而故意悬空。
 
 【隐藏要求】
 在场景描写中，刻意保留一个用户输入时没明说、但由其特质必然推导出的"微小习惯"或"内心矛盾"。
@@ -2470,9 +2678,11 @@ ${scenario ? `场景：${scenario}` : '场景：未选择'}
 
 【风格禁忌】
 - 不要说教，不要总结人生道理。
+- 不要写成“你成为了更好的自己”“你终于明白”这类鸡汤句。
 - 不要过分戏剧化，避免车祸、死亡、暴富等极端情节。要像真实生活的切片。
 - 不要评价用户的选择好坏，不做价值判断。
 - 避免使用"幸福""成功""失败"等抽象评判词，用具体的动作和细节代替。
+- 不要为了“好看”而写得过分朦胧、过分抒情、过分像文学杂志短篇。
 
 【输出格式】
 只输出故事正文，不包含任何前缀说明或后缀总结。`;
@@ -2490,7 +2700,7 @@ ${scenario ? `场景：${scenario}` : '场景：未选择'}
  * @returns {Promise|void}
  */
             function buildReverseSystemPrompt(year, traits, choice, gender = null, scenario = null) {
-                return `你是一位擅长写"人生切片"的作家，风格介于村上春树和双雪涛之间，平淡中带着微妙的质感，文字有留白和呼吸感。
+                return `你是一位非常擅长写“真实但不夸张”的平行人生切片作者。你的任务不是制造狗血，而是写出一种“这条路也可能真的会这样”的人生代价。
 
 现在，请为一个用户生成一个"平行宇宙人生切片"。
 
@@ -2502,22 +2712,26 @@ ${describeChoiceDirection(choice)}
 ${gender ? `性别：${gender === 'male' ? '男性' : '女性'}` : '性别：未选择'}
 ${scenario ? `场景：${scenario}` : '场景：未选择'}
 
+${buildReaderFitDirectives('反向版本')}
+
+${buildAgeEraDirectives(year)}
+
 【创作要求】
 - 不要在故事正文开头写"2026年"或任何年份数字。时间背景已经通过卡片标签展示，正文直接从场景描写开始。例如第一句直接写"你关掉台灯，窗外的城市安静下来。"而不是"2026年，你关掉台灯……"
-- 根据出生年份，准确锚定时代背景。计算用户20岁、30岁时分别处于什么年代，故事发生的时间点默认为用户当前年龄或稍早几年。
+- 根据出生年份，准确锚定时代背景。故事发生的年龄、压力、关系和生活状态必须符合用户当前年龄。
 【性别细节要求】
 根据用户选择的性别（若已选），在细节描写上可以轻微倾向该性别常见的中性细节（如男性可选：袖口纽扣、下巴线条；女性可选：耳边碎发、指节弧度）。若未选性别，保持完全中性。无论何种情况，不使用"高跟鞋""领带"等强烈性别标签物品。
 时间锚点要求：故事发生的时间应为当前年份（2026年）前后，主角年龄 = 2026 - 出生年份。场景需体现"此时此刻"的平行生活。
 - 根据关键选择，设定一个与用户现实选择不同的职业或生活状态。
 - 即使这是“搞砸了”的版本，也必须从“而是”后面的选择已经发生开始写；困顿、狼狈或失意应来自这条已选择道路之后的现实代价，而不是退回去写“没有”后面的旧路径。
 - 核心特质必须贯穿始终，让用户读完后觉得"这确实是我可能会成为的样子"。
-- 生成一个300-450字左右的人生切片。不是完整传记，而是某一个具体时刻的场景描写，像电影中的一个镜头。
-- 必须包含：一个具体的空间（如：北京的地下室、深圳的城中村、大理的院子、上海的老式写字楼、老家县城的阳台）、一个微小的动作或物品细节（如：手指上的墨水、桌上凉掉的咖啡、窗外传来的特定声音、袖口磨起的毛球）、一句若隐若现的内心独白（不要直接写"她想"，而是融入叙述中）。
-- ${gender ? `用第三人称"${gender === 'male' ? '他' : '她'}"写作。` : '用第二人称"你"写作。'}结尾不总结，不说道理，留一句有画面感的、微微悬停的句子。
-- 请描绘一个因为某个选择或性格特质而走向困顿、狼狈或失意的平行版本。不要过分戏剧化，保持真实生活的质感，像一片有点灰暗但依然有光的切片。
+- 生成一个360-480字左右的人生切片。不是完整传记，而是一个非常具体、非常现实、能让用户看懂处境的片段。
+- 必须包含：一个具体的空间、一个具体的动作、一个能看出处境的小细节、一个让人意识到“这条路确实更难”的生活瞬间。
+- 请描绘一个因为某个选择或性格特质而走向更拧巴、更辛苦、更失衡的平行版本，但这种下坠必须是现实里的、日常的，例如关系变淡、工作不顺、长期疲惫、经济吃紧、自我怀疑，而不是极端灾难。要写出“为什么会变难”，不能只写情绪。
+- ${gender ? `用第三人称"${gender === 'male' ? '他' : '她'}"写作。` : '用第二人称"你"写作。'}结尾不要总结，不要硬拔高。
 
 【年代细节要求】
-根据用户出生年份，推算其10-20岁期间所处的年代（即用户记忆最深刻的青春年代）。在场景描写中，必须自然地融入一个属于那个时代的、但如今已逐渐消失或变得罕见的细节。这个细节要具体、可感知，像一把打开记忆的钥匙。
+根据用户出生年份，推算其10-20岁期间所处的年代（即用户记忆最深刻的青春年代）。在场景描写中，可以自然地融入一个属于那个时代的、但如今已逐渐消失或变得罕见的细节。这个细节要具体、可感知，像一把打开记忆的钥匙。
 
 推算逻辑与范例：
 - 若出生于1970-1979年：青春在1980-1990年代。细节如：录像厅手写的今日放映小黑板、窗式空调的滴水声、搪瓷盆底的红双喜图案、翻盖寻呼机别在腰间的重量。
@@ -2532,9 +2746,11 @@ ${scenario ? `场景：${scenario}` : '场景：未选择'}
 
 【风格禁忌】
 - 不要说教，不要总结人生道理。
+- 不要写成“黑暗版人生”或“惨文”，也不要为了反向而故意惩罚用户。
 - 不要过分戏剧化，避免车祸、死亡、暴富等极端情节。要像真实生活的切片。
 - 不要评价用户的选择好坏，不做价值判断。
 - 避免使用"幸福""成功""失败"等抽象评判词，用具体的动作和细节代替。
+- 不要写成“惨文”或故作高级的忧郁散文。
 
 【输出格式】
 只输出故事正文，不包含任何前缀说明或后缀总结。`;
@@ -2557,23 +2773,23 @@ ${scenario ? `场景：${scenario}` : '场景：未选择'}
                 
                 // 温度配置
                 const temperatureConfig = {
-                    'main': 0.8,      // 主生成：创意与稳定平衡
-                    'reverse': 0.6,   // 反向生成：让困顿感更克制、更真实
-                    'personal': 0.9   // 私人版本：允许更多文学想象
+                    'main': 0.6,       // 主生成：先稳住“像本人”和可读性
+                    'reverse': 0.54,   // 反向生成：更克制，避免惩罚式狗血
+                    'personal': 0.68   // 私人版本：更服从用户补充事实，减少擅自改写
                 };
                 
                 // 用户消息配置
                 const userMessageConfig = {
-                    'main': '请严格按照系统提示里的“选择解释”生成：故事必须发生在“而是”后面的选择已经成为事实之后。',
-                    'reverse': '请严格按照系统提示里的“选择解释”生成：这是“而是”后面的选择已经发生后，一个更困顿但真实的版本。',
-                    'personal': '请严格按照系统提示里的“选择解释”生成：结合补充细节，但故事必须发生在“而是”后面的选择已经成为事实之后。'
+                    'main': '请先在心里完成用户画像和选择后果推演，再输出故事正文。优先保证看得懂、具体、像这个人；不要写成散文。',
+                    'reverse': '请先在心里完成用户画像和选择后果推演，再输出故事正文。写现实代价，不要狗血、不要惩罚用户、不要过度文艺。',
+                    'personal': '请先在心里完成用户画像和选择后果推演，再输出故事正文。补充细节必须改变场景、动作和处境，让人明显觉得更像本人。'
                 };
                 
                 // max_tokens配置（根据版本调整）
                 const maxTokensConfig = {
-                    'main': 700,      // 主生成：300-450字左右
-                    'reverse': 700,   // 反向生成：300-450字左右
-                    'personal': 900   // 私人版本：500-650字左右
+                    'main': 900,      // 主生成：允许更多现实信息，但仍控制字数
+                    'reverse': 900,   // 反向生成：给代价逻辑更多空间
+                    'personal': 1100  // 私人版本：允许完整融入用户补充
                 };
                 
                 // 获取配置
@@ -2628,6 +2844,24 @@ ${scenario ? `场景：${scenario}` : '场景：未选择'}
                     throw error;
                 }
             }
+
+            function getCardActionsMarkup(scope = '') {
+                const suffix = scope ? ` id="${scope}` : '';
+                const collectId = scope ? `${suffix}CollectBtn"` : '';
+                const expandId = scope ? `${suffix}ExpandBtn"` : '';
+                const downloadId = scope ? `${suffix}DownloadBtn"` : '';
+                const shareId = scope ? `${suffix}CopyShareBtn"` : '';
+
+                return `
+                            <div class="card-personal-entry">
+                                <button class="card-action-btn card-expand-btn"${expandId}>感觉不像你？多告诉我一些细节吧</button>
+                            </div>
+                            <div class="card-actions">
+                                <button class="card-action-btn card-download-btn"${downloadId}>保存图片</button>
+                                <button class="card-action-btn card-collect-btn"${collectId}>收藏这个平行宇宙</button>
+                                <button class="card-action-btn card-share-btn"${shareId}>分享</button>
+                            </div>`;
+            }
             
             // 显示结果
 
@@ -2663,13 +2897,7 @@ ${scenario ? `场景：${scenario}` : '场景：未选择'}
                             </div>
                             
                             <!-- 卡片底部操作 -->
-                            <div class="card-actions">
-                                <button class="card-action-btn card-collect-btn">收藏这个平行宇宙</button>
-                                <span class="action-separator">·</span>
-                                <button class="card-action-btn card-expand-btn">纸短情长</button>
-                                <span class="action-separator">·</span>
-                                <button class="card-action-btn card-share-btn">分享</button>
-                            </div>
+                            ${getCardActionsMarkup()}
                         </div>
                     </div>
                 `;
@@ -2767,13 +2995,7 @@ ${scenario ? `场景：${scenario}` : '场景：未选择'}
                             </div>
                             
                             <!-- 卡片底部操作 -->
-                            <div class="card-actions">
-                                <button class="card-action-btn card-collect-btn" id="reverseCollectBtn">收藏这个平行宇宙</button>
-                                <span class="action-separator">·</span>
-                                <button class="card-action-btn card-expand-btn" id="reverseExpandBtn">纸短情长</button>
-                                <span class="action-separator">·</span>
-                                <button class="card-action-btn card-share-btn" id="reverseShareBtn">分享</button>
-                            </div>
+                            ${getCardActionsMarkup('reverse')}
                         </div>
                     </div>
                 `;
@@ -3030,7 +3252,7 @@ ${scenario ? `场景：${scenario}` : '场景：未选择'}
                 }
 
                 const fieldGroup = targetElement && targetElement.closest
-                    ? targetElement.closest('.form-group')
+                    ? targetElement.closest('.form-group, .year-selector-container, .input-section-group')
                     : null;
 
                 if (fieldGroup) {
@@ -3117,8 +3339,10 @@ ${scenario ? `场景：${scenario}` : '场景：未选择'}
                         const isShowing = expandArea.classList.contains('show');
                         if (isShowing) {
                             expandArea.classList.remove('show');
-                            e.target.textContent = '纸短情长';
+                            expandArea.hidden = true;
+                            e.target.textContent = '感觉不像你？多告诉我一些细节吧';
                         } else {
+                            expandArea.hidden = false;
                             expandArea.classList.add('show');
                             e.target.textContent = '收起';
                             
@@ -3222,28 +3446,7 @@ ${scenario ? `场景：${scenario}` : '场景：未选择'}
             function handleCollectClick(button) {
                 // 如果已经收藏，则取消收藏
                 if (button.classList.contains('collected')) {
-                    // 获取故事数据（支持新旧两种卡片结构）
-                    let storyCard, storyElement, endingNoteElement;
-                    
-                    // 尝试查找新卡片结构
-                    storyCard = button.closest('.parallel-card');
-                    if (storyCard) {
-                        storyElement = storyCard.querySelector('.story-body');
-                        endingNoteElement = storyCard.querySelector('.story-ending');
-                    } else {
-                        // 回退到旧卡片结构
-                        storyCard = button.closest('.story-card');
-                        if (storyCard) {
-                            storyElement = storyCard.querySelector('.result-content') || storyCard.querySelector('div:first-child');
-                            endingNoteElement = storyCard.querySelector('.ending-note');
-                        }
-                    }
-                    
-                    let storyText = '';
-                    if (storyElement) {
-                        // 提取纯文本内容
-                        storyText = storyElement.textContent || storyElement.innerText || '';
-                    }
+                    const { storyText } = getStoryPartsFromActionButton(button);
                     
                     // 通过故事内容查找收藏项
                     const collection = findCollectionByStory(storyText);
@@ -3257,34 +3460,7 @@ ${scenario ? `场景：${scenario}` : '场景：未选择'}
                     button.textContent = '收藏这个平行宇宙';
                     showToast('已从抽屉取出');
                 } else {
-                    // 获取故事数据（支持新旧两种卡片结构）
-                    let storyCard, storyElement, endingNoteElement;
-                    
-                    // 尝试查找新卡片结构
-                    storyCard = button.closest('.parallel-card');
-                    if (storyCard) {
-                        storyElement = storyCard.querySelector('.story-body');
-                        endingNoteElement = storyCard.querySelector('.story-ending');
-                    } else {
-                        // 回退到旧卡片结构
-                        storyCard = button.closest('.story-card');
-                        if (storyCard) {
-                            storyElement = storyCard.querySelector('.result-content') || storyCard.querySelector('div:first-child');
-                            endingNoteElement = storyCard.querySelector('.ending-note');
-                        }
-                    }
-                    
-                    let storyText = '';
-                    let endingNote = '';
-                    
-                    if (storyElement) {
-                        // 提取纯文本内容
-                        storyText = storyElement.textContent || storyElement.innerText || '';
-                    }
-                    
-                    if (endingNoteElement) {
-                        endingNote = endingNoteElement.textContent || '';
-                    }
+                    const { cardRoot, storyText, endingNote } = getStoryPartsFromActionButton(button);
                     
                     // 获取用户输入信息
                     const selectedYearItem = document.querySelector('.year-item.selected');
@@ -3322,12 +3498,12 @@ ${scenario ? `场景：${scenario}` : '场景：未选择'}
                         button.textContent = '已放入抽屉';
                         
                         // 卡片缩小动画（支持新旧卡片结构）
-                        if (storyCard) {
-                            storyCard.style.transition = 'transform 0.2s ease';
-                            storyCard.style.transform = 'scale(0.98)';
+                        if (cardRoot) {
+                            cardRoot.style.transition = 'transform 0.2s ease';
+                            cardRoot.style.transform = 'scale(0.98)';
                             
                             setTimeout(() => {
-                                storyCard.style.transform = 'scale(1)';
+                                cardRoot.style.transform = 'scale(1)';
                             }, 200);
                         }
                         
@@ -3363,7 +3539,7 @@ ${scenario ? `场景：${scenario}` : '场景：未选择'}
                     
                     if (isShowing) {
                         expandArea.classList.remove('show');
-                        link.textContent = '觉得这个故事还不够像你？纸短情长。';
+                        link.textContent = '感觉不像你？多告诉我一些细节吧。';
                     } else {
                         expandArea.classList.add('show');
                         link.textContent = '收起';
@@ -3405,8 +3581,10 @@ ${scenario ? `场景：${scenario}` : '场景：未选择'}
                     const isShowing = existingExpandArea.classList.contains('show');
                     if (isShowing) {
                         existingExpandArea.classList.remove('show');
-                        expandBtn.textContent = '纸短情长';
+                        existingExpandArea.hidden = true;
+                        expandBtn.textContent = '感觉不像你？多告诉我一些细节吧';
                     } else {
+                        existingExpandArea.hidden = false;
                         existingExpandArea.classList.add('show');
                         expandBtn.textContent = '收起';
                     }
@@ -3418,7 +3596,7 @@ ${scenario ? `场景：${scenario}` : '场景：未选择'}
                 expandArea.className = 'expand-area';
                 expandArea.innerHTML = `
                     <div class="expand-content">
-                        <textarea class="expand-input" placeholder="如果你愿意，请再多告诉我一些吧，什么都好。"></textarea>
+                        <textarea class="expand-input" placeholder="如果你愿意，可以再告诉我一些你的近况、住处、工作、爱好或心事。反正什么都好。"></textarea>
                         <div class="expand-hint">可以不回答，但回答了故事会更像你。</div>
                         <div class="expand-actions">
                             <button class="expand-generate-btn">专属于你的详章</button>
@@ -3431,7 +3609,7 @@ ${scenario ? `场景：${scenario}` : '场景：未选择'}
                 if (cardContent) {
                     const actions = cardContent.querySelector('.card-actions');
                     if (actions) {
-                        cardContent.insertBefore(expandArea, actions.nextSibling);
+                        cardContent.insertBefore(expandArea, actions);
                     } else {
                         cardContent.appendChild(expandArea);
                     }
@@ -3442,6 +3620,7 @@ ${scenario ? `场景：${scenario}` : '场景：未选择'}
                 // 按钮已经通过全局事件监听器处理，无需单独添加事件监听器
                 
                 // 显示展开区域
+                expandArea.hidden = false;
                 expandArea.classList.add('show');
                 expandBtn.textContent = '收起';
                 
@@ -3532,11 +3711,7 @@ ${scenario ? `场景：${scenario}` : '场景：未选择'}
                     gender = selectedGenderSymbol ? selectedGenderSymbol.dataset.gender : null;
                     
                     // 获取场景信息
-                    let scenario = null;
-                    const sceneItem = document.querySelector('.scene-item.selected');
-                    if (sceneItem && sceneItem.dataset.scene) {
-                        scenario = sceneItem.dataset.scene;
-                    }
+                    const scenario = getSelectedChoiceScenario();
                     
                     console.log('最终使用的数据:', { birthYear, traits, choice, gender, scenario });
                     
@@ -3574,7 +3749,7 @@ ${scenario ? `场景：${scenario}` : '场景：未选择'}
                     expandArea.classList.remove('show');
                     const expandBtn = card.querySelector('.card-expand-btn');
                     if (expandBtn) {
-                        expandBtn.textContent = '纸短情长';
+                        expandBtn.textContent = '感觉不像你？多告诉我一些细节吧';
                     }
                     
                     // 恢复按钮
@@ -3665,7 +3840,7 @@ ${scenario ? `场景：${scenario}` : '场景：未选择'}
  * @returns {Promise|void}
  */
             function buildPersonalSystemPrompt(year, traits, choice, extraDetail, gender = null, scenario = null) {
-                return `你是一位擅长写"人生切片"的作家，风格介于村上春树和双雪涛之间，平淡中带着微妙的质感，文字有留白和呼吸感。
+                return `你是一位擅长把“用户给出的零碎细节”真正写进故事里的作者。你的目标是让用户明显感觉到：这一版比刚才更像我本人。
 
 现在，请为一个用户生成一个"平行宇宙人生切片"。
 
@@ -3678,19 +3853,27 @@ ${describeChoiceDirection(choice)}
 ${gender ? `性别：${gender === 'male' ? '男性' : '女性'}` : '性别：未选择'}
 ${scenario ? `场景：${scenario}` : '场景：未选择'}
 
+${buildReaderFitDirectives('私人版本')}
+
+${buildAgeEraDirectives(year)}
+
+${buildPersonalDetailDirectives(extraDetail)}
+
 【创作要求】
 - 不要在故事正文开头写"2026年"或任何年份数字。时间背景已经通过卡片标签展示，正文直接从场景描写开始。例如第一句直接写"你关掉台灯，窗外的城市安静下来。"而不是"2026年，你关掉台灯……"
-- 根据出生年份，准确锚定时代背景。计算用户20岁、30岁时分别处于什么年代，故事发生的时间点默认为用户当前年龄或稍早几年。
+- 根据出生年份，准确锚定时代背景。故事发生的年龄、压力、关系和生活状态必须符合用户当前年龄。
 【性别细节要求】
 根据用户选择的性别（若已选），在细节描写上可以轻微倾向该性别常见的中性细节（如男性可选：袖口纽扣、下巴线条；女性可选：耳边碎发、指节弧度）。若未选性别，保持完全中性。无论何种情况，不使用"高跟鞋""领带"等强烈性别标签物品。
 时间锚点要求：故事发生的时间应为当前年份（2026年）前后，主角年龄 = 2026 - 出生年份。场景需体现"此时此刻"的平行生活。
 - 根据关键选择，设定一个与用户现实选择不同的职业或生活状态。
-- 关键选择中“而是”后面的内容是私人版本的既定事实；补充细节只能服务于这条道路，不能把故事拉回“没有”后面的旧路径。
+- 私人版本里，补充细节是新的最高事实。若补充细节与“而是”后面的选择冲突，以补充细节为准；“而是”后面的选择只能作为曾经生成过的设定、旧前提或对照，不得强行决定主角现在的状态。
 - 核心特质必须贯穿始终，让用户读完后觉得"这确实是我可能会成为的样子"。
-- 生成一个500-650字左右的人生切片。不是完整传记，而是某一个具体时刻的场景描写，像电影中的一个镜头。
-- 必须包含：一个具体的空间（如：北京的地下室、深圳的城中村、大理的院子、上海的老式写字楼、老家县城的阳台）、一个微小的动作或物品细节（如：手指上的墨水、桌上凉掉的咖啡、窗外传来的特定声音、袖口磨起的毛球）、一句若隐若现的内心独白（不要直接写"她想"，而是融入叙述中）。
-- ${gender ? `用第三人称"${gender === 'male' ? '他' : '她'}"写作。` : '用第二人称"你"写作。'}结尾不总结，不说道理，留一句有画面感的、微微悬停的句子。
-- 请将用户提供的补充细节（如一件物品、一个习惯、一个场景）自然地编织进故事中，让它成为这个平行宇宙里一个令人心头一动的微小锚点。
+- 生成一个520-700字左右的人生切片。不是完整传记，而是一个更完整、更贴近这个人的现实片段，但不要为了变长而重复抒情。
+- 必须让补充细节真正起作用，而不是只被轻轻提一句。它应该至少影响两处内容：场景里的具体物件/动作，以及主角当下的关系、压力或生活状态。补充细节与模型推断冲突时，一律以补充细节为准。
+- 优先写“这个人具体是怎么生活的”：住在哪、做什么、和谁来往、在为什么事发愁、平时有什么习惯、什么东西会戳到他/她。
+- 可以比主版本更细腻一点，但依然要自然，不要堆砌漂亮句子。私人版的“更像本人”来自细节命中，不来自更文艺。
+- 用第二人称"你"写作。结尾可以留下余味，但不要为了文学感而故意写得虚。
+- 请将用户提供的补充细节（如一件物品、一个习惯、一个场景、一段关系、一种长期心事）自然地编织进故事中，让读者能明显看出“这版为什么更像本人”。
 
 【隐藏要求】
 在场景描写中，刻意保留一个用户输入时没明说、但由其特质必然推导出的"微小习惯"或"内心矛盾"。
@@ -3699,9 +3882,11 @@ ${scenario ? `场景：${scenario}` : '场景：未选择'}
 
 【风格禁忌】
 - 不要说教，不要总结人生道理。
+- 不要把补充细节当作金句素材，不要围绕它空泛抒情。
 - 不要过分戏剧化，避免车祸、死亡、暴富等极端情节。要像真实生活的切片。
 - 不要评价用户的选择好坏，不做价值判断。
 - 避免使用"幸福""成功""失败"等抽象评判词，用具体的动作和细节代替。
+- 不要写成过度文艺的独白，不要只顾氛围忽略“像本人”。
 
 【输出格式】
 只输出故事正文，不包含任何前缀说明或后缀总结。`;
@@ -3728,8 +3913,7 @@ ${scenario ? `场景：${scenario}` : '场景：未选择'}
                     const gender = selectedGenderSymbol ? selectedGenderSymbol.dataset.gender : null;
                     
                     // 获取场景选择
-                    const selectedScenario = document.querySelector('.prompt-tag.selected');
-                    const scenario = selectedScenario ? selectedScenario.textContent.trim() : null;
+                    const scenario = getSelectedChoiceScenario();
                     
                     // 组合关键选择
                     let choice = '';
@@ -3759,7 +3943,7 @@ ${scenario ? `场景：${scenario}` : '场景：未选择'}
                     const expandLink = document.querySelector('.expand-link');
                     if (expandLink && expandArea) {
                         expandArea.classList.remove('show');
-                        expandLink.textContent = '觉得这个故事还不够像你？纸短情长。';
+                        expandLink.textContent = '感觉不像你？多告诉我一些细节吧。';
                     }
                     
                     setModalTitle('mainModal', '独属于你的底片');
@@ -3862,13 +4046,7 @@ ${scenario ? `场景：${scenario}` : '场景：未选择'}
                             </div>
                             
                             <!-- 卡片底部操作 -->
-                            <div class="card-actions">
-                                <button class="card-action-btn card-collect-btn">收藏这个平行宇宙</button>
-                                <span class="action-separator">·</span>
-                                <button class="card-action-btn card-expand-btn">纸短情长</button>
-                                <span class="action-separator">·</span>
-                                <button class="card-action-btn card-share-btn">分享</button>
-                            </div>
+                            ${getCardActionsMarkup()}
                         </div>
                     </div>
                 `;
@@ -3936,13 +4114,7 @@ ${scenario ? `场景：${scenario}` : '场景：未选择'}
                             </div>
                             
                             <!-- 卡片底部操作 -->
-                            <div class="card-actions">
-                                <button class="card-action-btn card-collect-btn">收藏这个平行宇宙</button>
-                                <span class="action-separator">·</span>
-                                <button class="card-action-btn card-expand-btn">纸短情长</button>
-                                <span class="action-separator">·</span>
-                                <button class="card-action-btn card-share-btn">分享</button>
-                            </div>
+                            ${getCardActionsMarkup()}
                         </div>
                     </div>
                 `;
@@ -4030,6 +4202,7 @@ ${scenario ? `场景：${scenario}` : '场景：未选择'}
                 toast.className = 'collect-toast';
                 toast.textContent = message;
                 document.body.appendChild(toast);
+                toast.style.zIndex = '2147483647';
                 
                 // 显示提示
                 setTimeout(() => {
@@ -4085,9 +4258,9 @@ ${scenario ? `场景：${scenario}` : '场景：未选择'}
                 }
                 
                 // 获取分享按钮
-                const shareBtn = cardElement.querySelector('.card-share-btn');
+                const shareBtn = cardElement.querySelector('.card-download-btn');
                 if (!shareBtn) {
-                    console.error('未找到分享按钮');
+                    console.error('未找到保存图片按钮');
                     return;
                 }
                 
@@ -4241,7 +4414,7 @@ ${scenario ? `场景：${scenario}` : '场景：未选择'}
                         downloadLink.click();
                         document.body.removeChild(downloadLink);
                         
-                        showToast('分享图片已保存到本地');
+                        showToast('图片已保存到本地');
                     } catch (error) {
                         console.log('下载失败，显示图片预览:', error);
                         
@@ -4293,9 +4466,12 @@ ${scenario ? `场景：${scenario}` : '场景：未选择'}
                     }
                     
                     // 更新按钮状态为已生成
-                    shareBtn.textContent = '已生成';
-                    shareBtn.disabled = true;
-                    shareBtn.classList.add('disabled');
+                    shareBtn.textContent = '已保存';
+                    window.setTimeout(() => {
+                        shareBtn.textContent = originalText;
+                        shareBtn.disabled = false;
+                        shareBtn.classList.remove('disabled');
+                    }, 1400);
                     
                     }).catch(error => {
                     console.error('生成失败:', error);
@@ -4371,27 +4547,65 @@ ${scenario ? `场景：${scenario}` : '场景：未选择'}
                 document.body.appendChild(img);
                 console.log('图片预览已显示');
             }
+
+            async function copyShareText() {
+                const shareLandingUrl = 'https://my-ruguods-app-1.onrender.com';
+                const shareText = `我刚在「如果当时」里，遇见了平行宇宙的自己。\n你也来看看，那边的你正在做什么吧！\n\n👉${shareLandingUrl}`;
+
+                try {
+                    if (navigator.clipboard && window.isSecureContext) {
+                        await navigator.clipboard.writeText(shareText);
+                    } else {
+                        const textarea = document.createElement('textarea');
+                        textarea.value = shareText;
+                        textarea.setAttribute('readonly', '');
+                        textarea.style.position = 'fixed';
+                        textarea.style.top = '-1000px';
+                        textarea.style.left = '-1000px';
+                        document.body.appendChild(textarea);
+                        textarea.select();
+                        document.execCommand('copy');
+                        textarea.remove();
+                    }
+
+                    showToast('分享文案和链接已复制');
+                } catch (error) {
+                    console.error('复制分享文案失败:', error);
+                    showToast('复制失败，请手动复制链接');
+                }
+            }
             
             // 添加分享按钮事件监听器 - 使用事件委托确保捕获动态生成的按钮
             console.log('初始化分享按钮事件监听器');
             
             // 直接为文档添加点击事件监听器
             document.addEventListener('click', function(e) {
+                // 检查是否点击了保存图片按钮
+                const downloadBtn = e.target.closest('.card-download-btn');
+                if (downloadBtn) {
+                    console.log('保存图片按钮被点击:', downloadBtn);
+                    e.preventDefault();
+                    e.stopPropagation();
+                    
+                    // 找到最近的卡片元素
+                    const cardElement = downloadBtn.closest('.parallel-card') || downloadBtn.closest('.story-card');
+                    if (cardElement) {
+                        console.log('找到卡片元素，调用保存图片功能');
+                        shareStoryCard(cardElement);
+                    } else {
+                        console.warn('未找到卡片元素');
+                    }
+                    return;
+                }
+
                 // 检查是否点击了分享按钮
                 const shareBtn = e.target.closest('.card-share-btn');
                 if (shareBtn) {
                     console.log('分享按钮被点击:', shareBtn);
                     e.preventDefault();
                     e.stopPropagation();
-                    
-                    // 找到最近的卡片元素
-                    const cardElement = shareBtn.closest('.parallel-card') || shareBtn.closest('.story-card');
-                    if (cardElement) {
-                        console.log('找到卡片元素，调用分享功能');
-                        shareStoryCard(cardElement);
-                    } else {
-                        console.warn('未找到卡片元素');
-                    }
+
+                    copyShareText();
                 }
             });
         });

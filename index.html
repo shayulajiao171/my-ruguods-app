@@ -7,7 +7,7 @@
     <!-- 字体引用 -->
     <link href="https://fonts.googleapis.com/css2?family=ZCOOL+KuaiLe&family=Noto+Serif+SC:wght@400;500;600&family=Noto+Sans+SC:wght@300;400&display=swap" rel="stylesheet">
     
-    <link rel="stylesheet" href="./style.css?v=20260418-2301">
+    <link rel="stylesheet" href="./style.css?v=20260419-1705">
     
         <!-- 移动端模态框简单修复 -->
     <style>
@@ -69,7 +69,7 @@
                             <div class="year-label-column">
                                 <label class="year-selector-label">你是哪一年来到这个世界的？</label>
                                 <!-- 直接输入年份入口（放在标签下方） -->
-                                <span class="direct-input-text">或者，直接告诉我你的年份</span>
+                                <span class="direct-input-text" role="button" tabindex="0">或者，直接告诉我你的年份</span>
                             </div>
                             <!-- 性别选择器放在标签右侧 -->
                             <div class="gender-symbols-container">
@@ -88,73 +88,76 @@
                         </div>
                     </div>
                     
-                    <!-- 核心特质输入 -->
-                    <div class="form-group">
-                        <label for="traits">用三个词，形容你性格里最隐秘的角落</label>
-                        <input type="text" id="traits" name="traits" 
-                               placeholder="比如：心软的，睡前会想很多的，对声音很敏感的">
-                        <div class="hint">无论故事怎么重写，这三个词始终认得你。</div>
-                    </div>
-                    
-                    <!-- 性格特质提示词 - 手机优化版 -->
-                    <div class="smart-prompt-system">
-                        <div class="prompt-section">
-                            <div class="prompt-section-title">
-                                <span>性格特质</span>
-                                <span class="prompt-section-subtitle">点击添加，可多选</span>
-                            </div>
-                            
-                            <!-- 手机优化：单行排列，减少选项 -->
-                            <div class="prompt-tags-container mobile-optimized" data-group="all">
-                                <span class="prompt-tag" data-value="内向的">内向的</span>
-                                <span class="prompt-tag" data-value="外向的">外向的</span>
-                                <span class="prompt-tag" data-value="敏感的">敏感的</span>
-                                <span class="prompt-tag" data-value="理性的">理性的</span>
-                                <span class="prompt-tag" data-value="感性的">感性的</span>
-                                <span class="prompt-tag" data-value="务实的">务实的</span>
-                                <span class="prompt-tag" data-value="浪漫的">浪漫的</span>
-                                <span class="prompt-tag" data-value="爱冒险的">爱冒险的</span>
-                                <span class="prompt-tag" data-value="谨慎的">谨慎的</span>
-                                <span class="prompt-tag" data-value="独立的">独立的</span>
-                                <span class="prompt-tag" data-value="冲动的">冲动的</span>
-                                <span class="prompt-tag" data-value="乐观的">乐观的</span>
-                                <span class="prompt-tag" data-value="焦虑的">焦虑的</span>
-                                <span class="prompt-tag" data-value="平静的">平静的</span>
-                                <span class="prompt-tag" data-value="热情的">热情的</span>
-                            </div>
-                            
-                            <!-- 智能推荐 -->
-                            <div class="prompt-recommendation" id="traitsRecommendation" style="display: none;">
-                                根据你的选择，我们推荐：<strong id="recommendedTraits"></strong>
+                    <div class="input-section-group traits-section-group">
+                        <!-- 核心特质输入 -->
+                        <div class="form-group">
+                            <label for="traits">用三个词，给故事一点你的轮廓</label>
+                            <input type="text" id="traits" name="traits" 
+                                   placeholder="比如：心软的，睡前会想很多的，对声音很敏感的">
+                            <div class="hint">无论故事怎么重写，这三个词始终认得你。</div>
+                        </div>
+                        
+                        <!-- 性格特质提示词 - 手机优化版 -->
+                        <div class="smart-prompt-system">
+                            <div class="prompt-section">
+                                <div class="prompt-section-title">
+                                    <span>性格特质</span>
+                                    <span class="prompt-section-subtitle">点击添加，可多选</span>
+                                </div>
+                                
+                                <!-- 手机优化：单行排列，减少选项 -->
+                                <div class="prompt-tags-container mobile-optimized" data-group="all">
+                                    <span class="prompt-tag" data-value="内向的">内向的</span>
+                                    <span class="prompt-tag" data-value="外向的">外向的</span>
+                                    <span class="prompt-tag" data-value="敏感的">敏感的</span>
+                                    <span class="prompt-tag" data-value="理性的">理性的</span>
+                                    <span class="prompt-tag" data-value="感性的">感性的</span>
+                                    <span class="prompt-tag" data-value="务实的">务实的</span>
+                                    <span class="prompt-tag" data-value="浪漫的">浪漫的</span>
+                                    <span class="prompt-tag" data-value="爱冒险的">爱冒险的</span>
+                                    <span class="prompt-tag" data-value="谨慎的">谨慎的</span>
+                                    <span class="prompt-tag" data-value="独立的">独立的</span>
+                                    <span class="prompt-tag" data-value="冲动的">冲动的</span>
+                                    <span class="prompt-tag" data-value="乐观的">乐观的</span>
+                                    <span class="prompt-tag" data-value="焦虑的">焦虑的</span>
+                                    <span class="prompt-tag" data-value="平静的">平静的</span>
+                                    <span class="prompt-tag" data-value="热情的">热情的</span>
+                                </div>
+                                
+                                <!-- 智能推荐 -->
+                                <div class="prompt-recommendation" id="traitsRecommendation" style="display: none;">
+                                    根据你的选择，我们推荐：<strong id="recommendedTraits"></strong>
+                                </div>
                             </div>
                         </div>
                     </div>
                     
-                    <!-- 关键选择输入 -->
-                    <div class="form-group">
-                        <label for="choice">如果当时，我没有______，而是______。</label>
-                        <div class="choice-input-wrapper">
-                            <input type="text" id="choicePart1" name="choicePart1" 
-                                   placeholder="比如：回老家 / 选文科 / 说分手"
-                                   class="choice-input-part">
-                            <span class="choice-separator">，而是</span>
-                            <input type="text" id="choicePart2" name="choicePart2" 
-                                   placeholder="比如：去北京 / 学艺术 / 再等等"
-                                   class="choice-input-part">
-                        </div>
-                        <div class="hint">这是平行宇宙的分岔口，你内心的那个"如果"。</div>
-                    </div>
-                    
-                    <!-- 选择场景提示词 -->
-                    <div class="smart-prompt-system">
-                        <div class="prompt-section">
-                            <div class="prompt-section-title">
-                                <span>选择场景</span>
-                                <span class="prompt-section-subtitle">点击选项自动填充</span>
+                    <div class="input-section-group choice-section-group">
+                        <!-- 关键选择输入 -->
+                        <div class="form-group">
+                            <label for="choice">如果当时，我没有______，而是______。</label>
+                            <div class="choice-input-wrapper">
+                                <input type="text" id="choicePart1" name="choicePart1" 
+                                       placeholder="比如：回老家 / 选文科 / 说分手"
+                                       class="choice-input-part">
+                                <span class="choice-separator">，而是</span>
+                                <input type="text" id="choicePart2" name="choicePart2" 
+                                       placeholder="比如：去北京 / 学艺术 / 再等等"
+                                       class="choice-input-part">
                             </div>
-                            
-                            <!-- 选择场景 - 3行布局（每行2个） -->
-                            <div class="choice-prompts-container">
+                            <div class="hint">这是平行宇宙的分岔口，你内心的那个"如果"。</div>
+                        </div>
+                        
+                        <!-- 选择场景提示词 -->
+                        <div class="smart-prompt-system">
+                            <div class="prompt-section">
+                                <div class="prompt-section-title">
+                                    <span>选择场景</span>
+                                    <span class="prompt-section-subtitle">点击选项自动填充</span>
+                                </div>
+                                
+                                <!-- 选择场景 - 3行布局（每行2个） -->
+                                <div class="choice-prompts-container">
                                 <!-- 第1行 -->
                                 <div class="choice-prompt-tag" data-part1="听从父母的建议" data-part2="追随内心冲动">
                                     <span class="choice-prompt-part" data-part="1">听从父母的建议</span>
@@ -190,15 +193,16 @@
                                     <span class="choice-prompt-separator">→</span>
                                     <span class="choice-prompt-part" data-part="2">做自由职业者</span>
                                 </div>
+                                </div>
                             </div>
-                        </div>
-                        
-                        <!-- 操作按钮 -->
-                        <div class="prompt-actions">
-                            <div class="prompt-actions-note">每个岔路口，都站着一个你未曾谋面的自己。</div>
-                            <button type="button" class="prompt-action-btn clear-all" id="clearAllPrompts">
-                                清空所有选择
-                            </button>
+                            
+                            <!-- 操作按钮 -->
+                            <div class="prompt-actions">
+                                <div class="prompt-actions-note">每个岔路口，都站着一个你未曾谋面的自己。</div>
+                                <button type="button" class="prompt-action-btn clear-all" id="clearAllPrompts">
+                                    清空所有选择
+                                </button>
+                            </div>
                         </div>
                     </div>
                 
@@ -278,7 +282,7 @@
     </div>
 
     
-    <script src="./app.js?v=20260418-2301" defer></script>
+    <script src="./app.js?v=20260419-1705" defer></script>
     
     
     <!-- 收藏馆面板 -->
