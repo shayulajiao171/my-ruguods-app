@@ -185,19 +185,20 @@
         function getProxyApiUrl() {
           // 只允许HTTP/HTTPS协议
           if (window.location.protocol === 'http:' || window.location.protocol === 'https:') {
-            // 动态获取API URL
-            // 如果当前主机是localhost，使用localhost
-            // 否则使用当前主机名（支持手机访问）
             const currentHost = window.location.hostname;
-            const currentPort = window.location.port;
             
-            // 如果是localhost或127.0.0.1，保持localhost
+            // 本地前端预览仍然走独立代理，方便手机连电脑调试。
             if (currentHost === 'localhost' || currentHost === '127.0.0.1') {
               return 'http://localhost:3000/api/deepseek';
             }
             
-            // 否则使用当前主机名（手机访问时会是电脑的IP地址）
-            // 注意：代理服务器必须在同一台机器上运行
+            // 公网部署由 server.js 同源代理，不能再请求 http://域名:3000，
+            // 否则 HTTPS 页面会被混合内容/CORS/端口限制拦截。
+            if (window.location.protocol === 'https:') {
+              return '/api/deepseek';
+            }
+
+            // 局域网手机预览通常访问电脑 IP:8000，代理仍在电脑 3000 端口。
             return 'http://' + currentHost + ':3000/api/deepseek';
           }
           
