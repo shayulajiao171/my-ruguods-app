@@ -1244,7 +1244,7 @@
 
                 panel.innerHTML = `
                     <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px;">
-                        <div style="font-family:STKaiti,KaiTi,serif;font-size:22px;letter-spacing:3px;color:#5e4b3d;">寄语</div>
+                        <div style="font-family:STKaiti,KaiTi,serif;font-size:22px;letter-spacing:3px;color:#5e4b3d;">作者寄语</div>
                         <button type="button" id="headerNoteClose" style="border:none;background:none;font-size:24px;color:#8b8178;width:32px;height:32px;cursor:pointer;">×</button>
                     </div>
                     <div id="headerNoteBody"></div>
@@ -1916,6 +1916,20 @@
                     settleYearSelection();
                 }, 120);
             });
+
+            yearSelector.addEventListener('wheel', function(event) {
+                if (window.innerWidth < 769) {
+                    return;
+                }
+
+                const delta = Math.abs(event.deltaX) > Math.abs(event.deltaY) ? event.deltaX : event.deltaY;
+                if (!delta) {
+                    return;
+                }
+
+                event.preventDefault();
+                yearSelector.scrollLeft += delta;
+            }, { passive: false });
             
             // 获取DOM元素
             const generateBtn = document.getElementById('generateBtn');
@@ -2002,6 +2016,52 @@
                 showError('请选择性别，这样故事会更贴近你', targetElement);
                 return null;
             }
+
+            function validateSupplementPrerequisites() {
+                const selectedYearItem = document.querySelector('.year-item.selected');
+                const yearContainer = document.querySelector('.year-selector-container');
+                const traitsInput = document.getElementById('traits');
+                const choiceInput = document.getElementById('choicePart1');
+                const choiceSection = document.querySelector('.choice-section-group');
+                const selectedChoiceTag = document.querySelector('.choice-prompt-tag.selected');
+                const traits = traitsInput ? traitsInput.value.trim() : '';
+                const choicePart1 = choiceInput ? choiceInput.value.trim() : '';
+                const choicePart2Input = document.getElementById('choicePart2');
+                const choicePart2 = choicePart2Input ? choicePart2Input.value.trim() : '';
+
+                if (!selectedYearItem) {
+                    showError('请先选择出生年份', yearContainer);
+                    return false;
+                }
+
+                const gender = requireGenderSelection();
+                if (!gender) {
+                    return false;
+                }
+
+                if (!traits) {
+                    if (traitsInput) {
+                        traitsInput.focus();
+                    }
+                    showError('请先填写或选择你的性格', traitsInput);
+                    return false;
+                }
+
+                if (!choicePart1 && !choicePart2) {
+                    if (choiceInput) {
+                        choiceInput.focus();
+                    }
+                    showError('请先填写你的“如果当时”', choiceInput);
+                    return false;
+                }
+
+                if (!selectedChoiceTag) {
+                    showError('请先选一个场景推荐，再补充更多细节', choiceSection);
+                    return false;
+                }
+
+                return true;
+            }
             
             // 生成按钮点击事件
             generateBtn.addEventListener('click', async function() {
@@ -2070,8 +2130,10 @@
                     finalChoice = `如果当时，我选择了${finalChoicePart2}`;
                 }
                 
+                const mainExtraDetail = sanitizeInput(getMainPageExtraDetail());
+                
                 // 开始生成流程（使用清理后的值）
-                startGeneration(birthYear, finalTraits, finalChoice, gender, scenario);
+                startGeneration(birthYear, finalTraits, finalChoice, gender, scenario, mainExtraDetail);
             });
             
             // 反向生成链接点击事件
@@ -2140,9 +2202,11 @@
                     return;
                 }
                 
+                const mainExtraDetail = getMainPageExtraDetail().replace(/</g, '&lt;').replace(/>/g, '&gt;');
+                
                 try {
                     // 开始反向生成流程
-                    await startReverseGeneration(birthYear, traits, choice, gender, scenario);
+                    await startReverseGeneration(birthYear, traits, choice, gender, scenario, mainExtraDetail);
                 } catch (error) {
                     // 发生错误时重新启用按钮
                     this.classList.remove('disabled');
@@ -2163,7 +2227,7 @@
  * @param {any} choice
  * @returns {Promise|void}
  */
-            async function startGeneration(year, traits, choice, gender = null, scenario = null) {
+            async function startGeneration(year, traits, choice, gender = null, scenario = null, mainExtraDetail = '') {
                 try {
                     // 1. 立即开始API调用，同时显示模态框等待内容
                     generateBtn.disabled = true;
@@ -2187,7 +2251,7 @@
                     startTextRotation('main', document.getElementById('mainWaitingText'), document.getElementById('mainProgressBar'));
                     
                     // 2. 立即开始构建系统Prompt和API调用（不等待动画）
-                    const systemPrompt = buildSystemPrompt(year, traits, choice, gender, scenario);
+                    const systemPrompt = buildSystemPrompt(year, traits, choice, gender, scenario, mainExtraDetail);
                     
                     // 3. 并行执行：同时进行API调用和动画
                     const apiCallPromise = callDeepSeekAPI(systemPrompt, 'main');
@@ -2220,7 +2284,7 @@
  * @param {any} choice
  * @returns {Promise|void}
  */
-            async function startReverseGeneration(year, traits, choice, gender = null, scenario = null) {
+            async function startReverseGeneration(year, traits, choice, gender = null, scenario = null, mainExtraDetail = '') {
                 try {
                     // 1. 立即开始API调用，同时显示模态框等待内容
                     generateBtn.disabled = true;
@@ -2235,7 +2299,7 @@
                     startTextRotation('reverse', document.getElementById('reverseWaitingText'), document.getElementById('reverseProgressBar'));
                     
                     // 2. 立即开始构建系统Prompt和API调用（不等待动画）
-                    const systemPrompt = buildReverseSystemPrompt(year, traits, choice, gender, scenario);
+                    const systemPrompt = buildReverseSystemPrompt(year, traits, choice, gender, scenario, mainExtraDetail);
                     
                     // 3. 并行执行：同时进行API调用和动画
                     const apiCallPromise = callDeepSeekAPI(systemPrompt, 'reverse');
@@ -2583,6 +2647,27 @@
                 return part1 && part2 ? `没有${part1}，而是${part2}` : selectedChoiceTag.textContent.trim();
             }
 
+            function getMainPageExtraDetail() {
+                const mainPageExpandArea = document.getElementById('mainPageExpandArea');
+                const input = mainPageExpandArea ? mainPageExpandArea.querySelector('.expand-input') : null;
+                return input ? input.value.trim() : '';
+            }
+
+            function buildPreGenerationDetailDirectives(extraDetail) {
+                const detail = String(extraDetail || '').trim();
+                if (!detail) {
+                    return '主界面补充细节：未填写。';
+                }
+
+                return `主界面补充细节：${detail}
+
+【主界面补充细节使用规则】
+- 这些细节是用户在生成前主动留下的个人背景，主生成和反向生成都必须参考。
+- 如果补充里出现近况、住处、工作/学习状态、爱好、习惯、心事、物件或关系，请自然写进故事的具体场景，不要只作为一句装饰。
+- 如果补充细节与系统根据年龄或场景推断出的内容冲突，优先相信用户补充；但仍要围绕关键选择展开平行人生。
+- 补充细节不需要全部逐字塞进正文，选择两三处最能让故事像用户本人的细节即可。`;
+            }
+
             function buildReaderFitDirectives(modeLabel) {
                 return `【先在心里完成，不要输出】
 - 先把用户还原成一个具体的人：年龄段、可能的城市/居住状态、工作或学习压力、关系状态、消费能力、一个日常习惯。
@@ -2630,6 +2715,20 @@
 - 处理方法：先抽取补充细节里的“事实词”和“限制词”，例如年龄、身份、地点、关系、进行中/未完成/反复多年/刚刚发生等；再围绕这些事实写当前生活，不能跳到事实已经结束后的阶段。`;
             }
 
+            function buildPersonalContextPriorityDirectives(personalDetail, mainExtraDetail) {
+                const mainDetail = String(mainExtraDetail || '').trim();
+                if (!mainDetail) {
+                    return `【信息优先级】
+- 私人版本输入框里的补充细节拥有最高优先级，其次是主界面的出生年份、性格、关键选择和场景。`;
+                }
+
+                return `【信息优先级】
+- 私人版本输入框里的补充细节拥有最高优先级。
+- 主界面“让故事多了解我一点”里写下的内容是第二优先级，必须兼顾，尤其是近况、习惯、物件、工作/学习状态、城市和心事。
+- 基础信息（出生年份、性格、关键选择、场景）是第三优先级，用来维持故事方向和年龄年代感。
+- 如果私人版本输入与主界面补充或基础信息冲突，以私人版本输入为准；如果不冲突，请把主界面补充自然保留下来，让这一版既更像本人，也不丢掉前面铺好的主线。`;
+            }
+
 
 /**
  * buildSystemPrompt
@@ -2640,7 +2739,7 @@
  * @param {any} gender
  * @returns {Promise|void}
  */
-            function buildSystemPrompt(year, traits, choice, gender = null, scenario = null) {
+            function buildSystemPrompt(year, traits, choice, gender = null, scenario = null, mainExtraDetail = '') {
                 return `你是一位非常擅长写“像真实人生一样”的平行人生切片作者。你的第一目标不是文采，而是让用户读完觉得：“这真的像我可能会过上的另一种生活。”
 
 现在，请为一个用户生成一个"平行宇宙人生切片"。
@@ -2652,6 +2751,7 @@
 ${describeChoiceDirection(choice)}
 ${gender ? `性别：${gender === 'male' ? '男性' : '女性'}` : '性别：未选择'}
 ${scenario ? `场景：${scenario}` : '场景：未选择'}
+${buildPreGenerationDetailDirectives(mainExtraDetail)}
 
 ${buildReaderFitDirectives('主版本')}
 
@@ -2700,7 +2800,7 @@ ${buildAgeEraDirectives(year)}
  * @param {any} gender
  * @returns {Promise|void}
  */
-            function buildReverseSystemPrompt(year, traits, choice, gender = null, scenario = null) {
+            function buildReverseSystemPrompt(year, traits, choice, gender = null, scenario = null, mainExtraDetail = '') {
                 return `你是一位非常擅长写“真实但不夸张”的平行人生切片作者。你的任务不是制造狗血，而是写出一种“这条路也可能真的会这样”的人生代价。
 
 现在，请为一个用户生成一个"平行宇宙人生切片"。
@@ -2712,6 +2812,7 @@ ${buildAgeEraDirectives(year)}
 ${describeChoiceDirection(choice)}
 ${gender ? `性别：${gender === 'male' ? '男性' : '女性'}` : '性别：未选择'}
 ${scenario ? `场景：${scenario}` : '场景：未选择'}
+${buildPreGenerationDetailDirectives(mainExtraDetail)}
 
 ${buildReaderFitDirectives('反向版本')}
 
@@ -3396,6 +3497,32 @@ ${buildAgeEraDirectives(year)}
                         }
                     }, 0);
                 }
+
+                if (e.target && e.target.id === 'mainPagePersonalToggleBtn') {
+                    e.preventDefault();
+                    const expandArea = document.getElementById('mainPageExpandArea');
+                    if (!expandArea) {
+                        return;
+                    }
+
+                    const isShowing = expandArea.classList.contains('show');
+                    if (isShowing) {
+                        expandArea.classList.remove('show');
+                        expandArea.hidden = true;
+                        e.target.textContent = '让故事多了解我一点';
+                    } else {
+                        expandArea.hidden = false;
+                        expandArea.classList.add('show');
+                        e.target.textContent = '收起补充';
+
+                        const input = expandArea.querySelector('.expand-input');
+                        if (input) {
+                            setTimeout(() => {
+                                input.focus();
+                            }, 220);
+                        }
+                    }
+                }
                 
                 // 我的抽屉链接点击事件
                 const collectionLink = e.target.closest('.collection-link');
@@ -3737,7 +3864,8 @@ ${buildAgeEraDirectives(year)}
                     startTextRotation('personal', document.getElementById('mainWaitingText'), document.getElementById('mainProgressBar'));
                     
                     // 构建系统Prompt（包含补充细节、性别和场景）
-                    const systemPrompt = buildPersonalSystemPrompt(birthYear, traits, choice, normalizedExtraDetail, gender, scenario);
+                    const mainExtraDetail = getMainPageExtraDetail();
+                    const systemPrompt = buildPersonalSystemPrompt(birthYear, traits, choice, normalizedExtraDetail, gender, scenario, mainExtraDetail);
                     
                     // 调用真实 API，并保持至少 10 秒沉浸式等待
                     const apiCallPromise = callDeepSeekAPI(systemPrompt, 'personal');
@@ -3840,7 +3968,7 @@ ${buildAgeEraDirectives(year)}
  * @param {any} gender
  * @returns {Promise|void}
  */
-            function buildPersonalSystemPrompt(year, traits, choice, extraDetail, gender = null, scenario = null) {
+            function buildPersonalSystemPrompt(year, traits, choice, extraDetail, gender = null, scenario = null, mainExtraDetail = '') {
                 return `你是一位擅长把“用户给出的零碎细节”真正写进故事里的作者。你的目标是让用户明显感觉到：这一版比刚才更像我本人。
 
 现在，请为一个用户生成一个"平行宇宙人生切片"。
@@ -3850,13 +3978,16 @@ ${buildAgeEraDirectives(year)}
 核心特质：${traits}
 关键选择：${choice}
 ${describeChoiceDirection(choice)}
-补充细节：${extraDetail}
+主界面补充：${mainExtraDetail || '未填写'}
+私人版本补充：${extraDetail}
 ${gender ? `性别：${gender === 'male' ? '男性' : '女性'}` : '性别：未选择'}
 ${scenario ? `场景：${scenario}` : '场景：未选择'}
 
 ${buildReaderFitDirectives('私人版本')}
 
 ${buildAgeEraDirectives(year)}
+
+${buildPersonalContextPriorityDirectives(extraDetail, mainExtraDetail)}
 
 ${buildPersonalDetailDirectives(extraDetail)}
 
@@ -3902,6 +4033,10 @@ ${buildPersonalDetailDirectives(extraDetail)}
  */
             async function generatePersonalVersion() {
                 try {
+                    if (!validateSupplementPrerequisites()) {
+                        return;
+                    }
+
                     // 获取用户输入
                     const selectedYearItem = document.querySelector('.year-item.selected');
                     const birthYear = selectedYearItem ? selectedYearItem.dataset.year : '2000';
@@ -3927,7 +4062,7 @@ ${buildPersonalDetailDirectives(extraDetail)}
                     }
                     
                     // 获取补充细节
-                    const expandArea = document.querySelector('.expand-area.show');
+                    const expandArea = document.querySelector('.main-page-expand-area.show') || document.querySelector('.expand-area.show');
                     let extraDetail = '';
                     if (expandArea) {
                         const input = expandArea.querySelector('.expand-input');
@@ -3936,15 +4071,23 @@ ${buildPersonalDetailDirectives(extraDetail)}
                     
                     // 禁用按钮
                     const generateBtn = document.getElementById('generateBtn');
-                    const personalBtn = document.querySelector('.expand-generate-btn');
+                    const personalBtn = expandArea ? expandArea.querySelector('.expand-generate-btn') : null;
                     generateBtn.disabled = true;
                     if (personalBtn) personalBtn.disabled = true;
                     
                     // 收起展开区域
+                    const mainPageToggleBtn = document.getElementById('mainPagePersonalToggleBtn');
                     const expandLink = document.querySelector('.expand-link');
-                    if (expandLink && expandArea) {
+                    if (expandArea) {
                         expandArea.classList.remove('show');
-                        expandLink.textContent = '感觉不像你？多告诉我一些细节吧。';
+                        expandArea.hidden = true;
+                        if (expandArea.classList.contains('main-page-expand-area')) {
+                            if (mainPageToggleBtn) {
+                                mainPageToggleBtn.textContent = '让故事多了解我一点';
+                            }
+                        } else if (expandLink) {
+                            expandLink.textContent = '感觉不像你？多告诉我一些细节吧。';
+                        }
                     }
                     
                     setModalTitle('mainModal', '独属于你的底片');
@@ -3952,7 +4095,8 @@ ${buildPersonalDetailDirectives(extraDetail)}
                     startTextRotation('personal', document.getElementById('mainWaitingText'), document.getElementById('mainProgressBar'));
                     
                     // 构建系统Prompt（包含补充细节）
-                    const systemPrompt = buildPersonalSystemPrompt(birthYear, traits, choice, extraDetail, gender, scenario);
+                    const mainExtraDetail = getMainPageExtraDetail();
+                    const systemPrompt = buildPersonalSystemPrompt(birthYear, traits, choice, extraDetail, gender, scenario, mainExtraDetail);
                     
                     // 调用DeepSeek API
                     const apiCallPromise = callDeepSeekAPI(systemPrompt, 'personal');
@@ -3961,8 +4105,8 @@ ${buildPersonalDetailDirectives(extraDetail)}
 
                     hideModalWaitingContent('mainWaitingContent', 'mainResultContent');
                     
-                    // 显示结果（私人版本）
-                    showPersonalResult(story, extraDetail);
+                    // 主界面补充入口也统一走模态框展示链路，避免结果显示和关闭状态不一致。
+                    showPersonalModal(story, extraDetail);
                     
                 } catch (error) {
                     // 处理错误
@@ -3973,7 +4117,8 @@ ${buildPersonalDetailDirectives(extraDetail)}
                     
                     // 恢复按钮状态
                     const generateBtn = document.getElementById('generateBtn');
-                    const personalBtn = document.querySelector('.expand-generate-btn');
+                    const activeExpandArea = document.querySelector('.main-page-expand-area') || document.querySelector('.expand-area.show');
+                    const personalBtn = activeExpandArea ? activeExpandArea.querySelector('.expand-generate-btn') : null;
                     generateBtn.disabled = false;
                     if (personalBtn) personalBtn.disabled = false;
                 }
@@ -4787,6 +4932,65 @@ ${buildPersonalDetailDirectives(extraDetail)}
             // 已选中的性格特质
             let selectedTraits = [];
             const maxTraits = 3;
+
+            function splitTraitTokens(value) {
+                return value
+                    .split(/[、,，/|；;\n]+/)
+                    .map(item => item.trim())
+                    .filter(Boolean);
+            }
+
+            function syncTraitsInputFromSelection() {
+                const traitsInput = document.getElementById('traits');
+                if (!traitsInput) {
+                    return;
+                }
+
+                const manualTokens = splitTraitTokens(traitsInput.value);
+                const mergedTokens = [...manualTokens];
+
+                selectedTraits.forEach((trait) => {
+                    if (!mergedTokens.includes(trait)) {
+                        mergedTokens.push(trait);
+                    }
+                });
+
+                const newValue = mergedTokens.join('、');
+
+                if (newValue) {
+                    traitsInput.setAttribute('data-has-value', 'true');
+                    traitsInput.classList.add('has-value');
+                } else {
+                    traitsInput.removeAttribute('data-has-value');
+                    traitsInput.classList.remove('has-value');
+                }
+
+                traitsInput.value = newValue;
+                traitsInput.dispatchEvent(new Event('input', { bubbles: true }));
+            }
+
+            function removeTraitFromInput(traitToRemove) {
+                const traitsInput = document.getElementById('traits');
+                if (!traitsInput) {
+                    return;
+                }
+
+                const remainingTokens = splitTraitTokens(traitsInput.value)
+                    .filter(item => item !== traitToRemove);
+
+                const newValue = remainingTokens.join('、');
+                traitsInput.value = newValue;
+
+                if (newValue) {
+                    traitsInput.setAttribute('data-has-value', 'true');
+                    traitsInput.classList.add('has-value');
+                } else {
+                    traitsInput.removeAttribute('data-has-value');
+                    traitsInput.classList.remove('has-value');
+                }
+
+                traitsInput.dispatchEvent(new Event('input', { bubbles: true }));
+            }
             
             // 性格特质提示词点击事件 - 使用选择场景的点击逻辑
             const traitTags = document.querySelectorAll('.prompt-tag');
@@ -4814,6 +5018,7 @@ ${buildPersonalDetailDirectives(extraDetail)}
                         // 取消选中
                         this.classList.remove('selected');
                         selectedTraits = selectedTraits.filter(trait => trait !== value);
+                        removeTraitFromInput(value);
                     } else {
                         // 检查是否已达到最大选择数量
                         if (selectedTraits.length >= maxTraits) {
@@ -4826,43 +5031,7 @@ ${buildPersonalDetailDirectives(extraDetail)}
                         // 选中
                         this.classList.add('selected');
                         selectedTraits.push(value);
-                    }
-                    
-                    // 立即更新输入框 - 直接操作，不使用函数
-                    console.log('尝试更新输入框，selectedTraits:', selectedTraits);
-                    const traitsInput = document.getElementById('traits');
-                    console.log('找到的输入框:', traitsInput);
-                    
-                    if (traitsInput) {
-                        const newValue = selectedTraits.length > 0 ? selectedTraits.join('、') : '';
-                        console.log('设置输入框值为:', newValue);
-                        
-                        // 确保输入框可见且正确显示值
-                        traitsInput.classList.add('has-value');
-                        
-                        // 强制placeholder在输入框有值时隐藏
-                        if (newValue) {
-                            traitsInput.setAttribute('data-has-value', 'true');
-                            traitsInput.classList.add('has-value');
-                        } else {
-                            traitsInput.removeAttribute('data-has-value');
-                            traitsInput.classList.remove('has-value');
-                        }
-                        
-                        // 设置值
-                        traitsInput.value = newValue;
-                        console.log('输入框当前值:', traitsInput.value);
-                        
-                        // 触发input事件，确保表单验证和其他依赖正常工作
-                        traitsInput.dispatchEvent(new Event('input', { bubbles: true }));
-                    } else {
-                        console.error('未找到ID为traits的输入框！');
-                        // 尝试其他方式查找
-                        const allInputs = document.querySelectorAll('input');
-                        console.log('所有输入框:', allInputs.length);
-                        allInputs.forEach((input, i) => {
-                            console.log(`输入框${i}: id="${input.id}", placeholder="${input.placeholder}"`);
-                        });
+                        syncTraitsInputFromSelection();
                     }
                     
                     // 更新智能推荐
@@ -4893,6 +5062,8 @@ ${buildPersonalDetailDirectives(extraDetail)}
                     
                     const part1 = this.getAttribute('data-part1');
                     const part2 = this.getAttribute('data-part2');
+                    const currentPart1 = choiceInput1 ? choiceInput1.value.trim() : '';
+                    const currentPart2 = choiceInput2 ? choiceInput2.value.trim() : '';
                     
                     // 检查是否已经选中了这个标签
                     const isAlreadySelected = this.classList.contains('selected');
@@ -4906,13 +5077,11 @@ ${buildPersonalDetailDirectives(extraDetail)}
                         console.log('已取消选择场景');
                     } else {
                         // 如果未选中，选择这个标签
-                        // 同时填充两个输入框
+                        // 同时填充两个输入框，保持以前的直接覆盖逻辑
                         document.getElementById('choicePart1').value = part1;
                         document.getElementById('choicePart2').value = part2;
-                        
-                        // 移除其他标签的选中状态
+
                         choiceTags.forEach(t => t.classList.remove('selected'));
-                        // 高亮显示选中的标签
                         this.classList.add('selected');
                         
                         console.log('已选择场景:', part1, '→', part2);
@@ -4999,21 +5168,21 @@ ${buildPersonalDetailDirectives(extraDetail)}
                 }
                 
                 const recommendationMap = {
-                    '内向的': ['留在家乡发展', '做自由职业者'],
-                    '外向的': ['去大城市闯荡', '创业尝试'],
-                    '敏感的': ['坚持那段感情', '选热爱但未知的路'],
-                    '理性的': ['直接工作积累经验', '选稳定的工作'],
-                    '感性的': ['坚持那段感情', '追随内心冲动'],
-                    '务实的': ['选稳定的工作', '留在家乡发展'],
-                    '浪漫的': ['选热爱但未知的路', '坚持那段感情'],
-                    '爱冒险的': ['去大城市闯荡', '创业尝试'],
-                    '谨慎的': ['选稳定的工作', '直接工作积累经验'],
-                    '独立的': ['做自由职业者', '去大城市闯荡'],
-                    '冲动的': ['追随内心冲动', '创业尝试'],
-                    '乐观的': ['去大城市闯荡', '选热爱但未知的路'],
-                    '焦虑的': ['选稳定的工作', '留在家乡发展'],
-                    '平静的': ['留在家乡发展', '做自由职业者'],
-                    '热情的': ['创业尝试', '追随内心冲动']
+                    '内向的': ['留在离家近的地方', '先一个人生活几年'],
+                    '外向的': ['去外地重新开始', '鼓起勇气说出口'],
+                    '敏感的': ['把喜欢藏在心里', '先一个人生活几年'],
+                    '理性的': ['接下那份安稳工作', '选一眼望到头的稳定'],
+                    '感性的': ['按自己的想法选', '鼓起勇气说出口'],
+                    '务实的': ['按家里的意思走', '接下那份安稳工作'],
+                    '浪漫的': ['鼓起勇气说出口', '试试更想做的事'],
+                    '爱冒险的': ['去外地重新开始', '去过更折腾的日子'],
+                    '谨慎的': ['按家里的意思走', '留在离家近的地方'],
+                    '独立的': ['先一个人生活几年', '为自己争这一次'],
+                    '冲动的': ['按自己的想法选', '去过更折腾的日子'],
+                    '乐观的': ['试试更想做的事', '去外地重新开始'],
+                    '焦虑的': ['接下那份安稳工作', '留在离家近的地方'],
+                    '平静的': ['选一眼望到头的稳定', '按家里的意思走'],
+                    '热情的': ['鼓起勇气说出口', '为自己争这一次']
                 };
 
                 let recommendations = [];
