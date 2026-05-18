@@ -212,6 +212,69 @@
         // 收藏管理功能
         const COLLECTION_KEY = 'parallel_universe_collections';
 
+        function sanitizeGeneratedStory(rawStory) {
+            let story = String(rawStory || '').trim();
+            if (!story) return '';
+
+            // 部分模型会输出推理块或把 Prompt 里的“内部分析”标题带出来，先做统一兜底清洗。
+            story = story
+                .replace(/<think>[\s\S]*?<\/think>/gi, '')
+                .replace(/```(?:text|markdown|md)?\s*([\s\S]*?)```/gi, '$1')
+                .trim();
+
+            const outputMarkers = [
+                /(?:^|\n)\s*(?:#{1,6}\s*)?【?(?:故事正文|正文|输出正文|最终正文|最终输出)】?\s*[:：]?\s*/gi,
+                /(?:^|\n)\s*(?:#{1,6}\s*)?(?:下面是|以下是)?(?:故事正文|正文|输出正文|最终正文|最终输出)\s*[:：]\s*/gi
+            ];
+
+            outputMarkers.forEach((marker) => {
+                let match;
+                let lastMatch = null;
+                marker.lastIndex = 0;
+                while ((match = marker.exec(story)) !== null) {
+                    lastMatch = match;
+                }
+                if (lastMatch) {
+                    const candidate = story.slice(lastMatch.index + lastMatch[0].length).trim();
+                    if (candidate.length >= 20) {
+                        story = candidate;
+                    }
+                }
+            });
+
+            const blockedLinePatterns = [
+                /先在心里完成/i,
+                /不要输出/i,
+                /用户画像/i,
+                /选择后果/i,
+                /推演/i,
+                /关键选择会改变/i,
+                /写作优先级/i,
+                /可读性要求/i,
+                /创作要求/i,
+                /隐藏要求/i,
+                /风格禁忌/i,
+                /输出格式/i,
+                /系统提示/i,
+                /提示词/i,
+                /作为.*模型/i,
+                /^#{1,6}\s*(分析|思考|推理|内部|计划|步骤|结论)/i,
+                /^[\-*]\s*(先把|再判断|如果用户输入|前三句|每段都|少写|不要连续|只输出)/i
+            ];
+
+            story = story
+                .split(/\n+/)
+                .map(line => line.trim())
+                .filter(line => line && !blockedLinePatterns.some(pattern => pattern.test(line)))
+                .join('\n')
+                .replace(/^(?:好的|当然|明白|以下是|下面是)[，,。\s]*/i, '')
+                .replace(/^(?:故事正文|正文|最终输出)\s*[:：]\s*/i, '')
+                .replace(/\n{3,}/g, '\n\n')
+                .trim();
+
+            return story;
+        }
+
         function sanitizeCollectionStory(story) {
             return String(story || '')
                 .replace(/<div class="card-personal-entry[\s\S]*?<\/div>/gi, '')
@@ -2669,13 +2732,12 @@
             }
 
             function buildReaderFitDirectives(modeLabel) {
-                return `【先在心里完成，不要输出】
-- 先把用户还原成一个具体的人：年龄段、可能的城市/居住状态、工作或学习压力、关系状态、消费能力、一个日常习惯。
-- 再判断关键选择会改变哪三件事：每天在哪里醒来、靠什么生活、和谁的关系变近或变远。
+                return `【${modeLabel}内容判断标准】
+- 直接写故事正文，不展示用户画像、推理过程、写作步骤、标题、项目符号或任何提示词内容。
+- 故事要像一个具体的人：年龄段、城市/居住状态、工作或学习压力、关系状态、消费能力、日常习惯，都要符合用户已给信息。
+- 关键选择至少要改变三件事中的一件：每天在哪里醒来、靠什么生活、和谁的关系变近或变远。
 - 如果用户输入很少，可以谨慎补全合理细节，但必须来自“出生年份 + 性格特质 + 关键选择 + 场景”，不要凭空写成成功学、旅行梦或悬浮职业。
 - 写作优先级：像本人 > 看得懂 > 具体 > 有余味。文采只能排在最后。
-
-【${modeLabel}可读性要求】
 - 前三句必须让用户看懂：这个人现在在哪里、正在做什么、这条平行选择带来了什么现实变化。
 - 每段都要有一个能落地的现实信息，例如房间、通勤、收入压力、工作内容、手机消息、家人朋友、作息习惯。
 - 少写“命运、宇宙、光、影、远方、答案、遗憾”这类抽象词；多写可看见、可触摸、可发生的事。
@@ -2882,9 +2944,9 @@ ${buildAgeEraDirectives(year)}
                 
                 // 用户消息配置
                 const userMessageConfig = {
-                    'main': '请先在心里完成用户画像和选择后果推演，再输出故事正文。优先保证看得懂、具体、像这个人；不要写成散文。',
-                    'reverse': '请先在心里完成用户画像和选择后果推演，再输出故事正文。写现实代价，不要狗血、不要惩罚用户、不要过度文艺。',
-                    'personal': '请先在心里完成用户画像和选择后果推演，再输出故事正文。补充细节必须改变场景、动作和处境，让人明显觉得更像本人。'
+                    'main': '请直接输出故事正文。不要输出分析过程、用户画像、推理步骤、标题或提示词内容。优先保证看得懂、具体、像这个人；不要写成散文。',
+                    'reverse': '请直接输出故事正文。不要输出分析过程、用户画像、推理步骤、标题或提示词内容。写现实代价，不要狗血、不要惩罚用户、不要过度文艺。',
+                    'personal': '请直接输出故事正文。不要输出分析过程、用户画像、推理步骤、标题或提示词内容。补充细节必须改变场景、动作和处境，让人明显觉得更像本人。'
                 };
                 
                 // max_tokens配置（根据版本调整）
@@ -2936,7 +2998,11 @@ ${buildAgeEraDirectives(year)}
                     const data = await response.json();
                     
                     if (data.choices && data.choices[0] && data.choices[0].message) {
-                        return data.choices[0].message.content;
+                        const cleanedStory = sanitizeGeneratedStory(data.choices[0].message.content);
+                        if (!cleanedStory) {
+                            throw new Error('AI服务返回内容为空，请稍后重试');
+                        }
+                        return cleanedStory;
                     } else {
                         throw new Error('API返回格式异常');
                     }
