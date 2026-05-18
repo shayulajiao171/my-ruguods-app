@@ -208,6 +208,8 @@
         }
         
         const MODEL_NAME = 'deepseek-chat';
+        const APP_BUILD_VERSION = '20260518-strong-sanitize-2';
+        console.log('如果当时 build:', APP_BUILD_VERSION);
         
         // 收藏管理功能
         const COLLECTION_KEY = 'parallel_universe_collections';
@@ -216,15 +218,25 @@
             let story = String(rawStory || '').trim();
             if (!story) return '';
 
-            // 部分模型会输出推理块或把 Prompt 里的“内部分析”标题带出来，先做统一兜底清洗。
+            // 部分模型会把内部分析、Markdown 标题或换行符字面量带出来，先做统一兜底清洗。
             story = story
+                .replace(/\r\n?/g, '\n')
+                .replace(/\\n|\/n/g, '\n')
                 .replace(/<think>[\s\S]*?<\/think>/gi, '')
                 .replace(/```(?:text|markdown|md)?\s*([\s\S]*?)```/gi, '$1')
+                .replace(/\*\*([^*]+)\*\*/g, '$1')
+                .replace(/^\s*>\s?/gm, '')
+                .trim();
+
+            // 如果模型把多个小标题挤在同一段里，先强制切成行，方便后续截断。
+            story = story
+                .replace(/\s*(-{3,}|—{2,})\s*/g, '\n')
+                .replace(/\s*(#{1,6}\s*)?(【?(?:用户画像与选择推演|用户画像|选择后果推演|故事后果推演|后果推演|内部完成|内部分析|推理过程|思考过程|故事正文|正文|最终正文|最终输出|正式输出)】?\s*[:：]?)/gi, '\n$1$2')
                 .trim();
 
             const outputMarkers = [
-                /(?:^|\n)\s*(?:#{1,6}\s*)?【?(?:故事正文|正文|输出正文|最终正文|最终输出)】?\s*[:：]?\s*/gi,
-                /(?:^|\n)\s*(?:#{1,6}\s*)?(?:下面是|以下是)?(?:故事正文|正文|输出正文|最终正文|最终输出)\s*[:：]\s*/gi
+                /(?:^|\n)\s*(?:#{1,6}\s*)?【?(?:故事正文|正文|输出正文|最终正文|最终输出|正式输出|正文如下|最终故事)】?\s*[:：]?\s*/gi,
+                /(?:^|\n)\s*(?:#{1,6}\s*)?(?:下面是|以下是)?(?:故事正文|正文|输出正文|最终正文|最终输出|正式输出|正文如下|最终故事)\s*[:：]\s*/gi
             ];
 
             outputMarkers.forEach((marker) => {
@@ -242,12 +254,45 @@
                 }
             });
 
+            // 没有明确“正文”标题时，从最后一个内部分析痕迹后，寻找第一个像故事开头的句子。
+            const internalTerms = [
+                '心里完成',
+                '不输出',
+                '用户画像与选择推演',
+                '用户画像',
+                '选择后果',
+                '后果推演',
+                '推理过程',
+                '思考过程',
+                '内部分析',
+                '关键选择会改变',
+                '写作优先级'
+            ];
+            const lastInternalIndex = internalTerms.reduce((latest, term) => {
+                const index = story.lastIndexOf(term);
+                return index > latest ? index : latest;
+            }, -1);
+            if (lastInternalIndex >= 0) {
+                const afterInternal = story.slice(lastInternalIndex);
+                const narrativeMatch = afterInternal.match(/(?:^|[。！？\n：:])\s*((?:你|他|她)(?:在|把|正|刚|又|已经|坐|站|走|回|推开|关掉|打开|拿起|盯着|看见|听见|穿过|拎着|收到|醒来|下意识|终于)[\s\S]*)/);
+                if (narrativeMatch && narrativeMatch[1] && narrativeMatch[1].trim().length >= 20) {
+                    story = narrativeMatch[1].trim();
+                }
+            }
+
             const blockedLinePatterns = [
                 /先在心里完成/i,
                 /不要输出/i,
+                /内部完成/i,
+                /用户画像与选择推演/i,
                 /用户画像/i,
                 /选择后果/i,
+                /后果推演/i,
+                /故事后果/i,
                 /推演/i,
+                /思考过程/i,
+                /推理过程/i,
+                /内部分析/i,
                 /关键选择会改变/i,
                 /写作优先级/i,
                 /可读性要求/i,
@@ -258,7 +303,7 @@
                 /系统提示/i,
                 /提示词/i,
                 /作为.*模型/i,
-                /^#{1,6}\s*(分析|思考|推理|内部|计划|步骤|结论)/i,
+                /^#{1,6}\s*(分析|思考|推理|内部|计划|步骤|结论|用户画像|后果推演|故事正文)/i,
                 /^[\-*]\s*(先把|再判断|如果用户输入|前三句|每段都|少写|不要连续|只输出)/i
             ];
 
@@ -268,11 +313,21 @@
                 .filter(line => line && !blockedLinePatterns.some(pattern => pattern.test(line)))
                 .join('\n')
                 .replace(/^(?:好的|当然|明白|以下是|下面是)[，,。\s]*/i, '')
-                .replace(/^(?:故事正文|正文|最终输出)\s*[:：]\s*/i, '')
+                .replace(/^(?:#{1,6}\s*)?(?:故事正文|正文|最终输出|最终正文|正式输出|正文如下)\s*[:：]\s*/i, '')
+                .replace(/^["“”'‘’\s]+|["“”'‘’\s]+$/g, '')
                 .replace(/\n{3,}/g, '\n\n')
                 .trim();
 
             return story;
+        }
+
+        function escapeStoryHTML(text) {
+            return String(text || '')
+                .replace(/&/g, '&amp;')
+                .replace(/</g, '&lt;')
+                .replace(/>/g, '&gt;')
+                .replace(/"/g, '&quot;')
+                .replace(/'/g, '&#39;');
         }
 
         function sanitizeCollectionStory(story) {
@@ -3243,19 +3298,30 @@ ${buildAgeEraDirectives(year)}
  */
             function formatStory(story) {
                 // 确保故事有适当的段落格式
-                let formatted = story;
+                let formatted = sanitizeGeneratedStory(story);
                 
                 // 如果故事中没有HTML标签，添加段落标签
                 if (!formatted.includes('<') && !formatted.includes('>')) {
-                    // 按句号分割并添加段落
-                    const sentences = formatted.split(/[。！？]/).filter(s => s.trim().length > 0);
-                    formatted = sentences.map(sentence => {
-                        const trimmed = sentence.trim();
-                        if (trimmed.length > 0) {
-                            return `<p>${trimmed}。</p>`;
-                        }
-                        return '';
-                    }).join('');
+                    const paragraphs = formatted
+                        .split(/\n+/)
+                        .map(paragraph => paragraph.trim())
+                        .filter(Boolean);
+
+                    if (paragraphs.length > 1) {
+                        formatted = paragraphs
+                            .map(paragraph => `<p>${escapeStoryHTML(paragraph)}</p>`)
+                            .join('');
+                    } else {
+                        // 按句子分段，同时保留原本的句末标点，避免全部被强行改成句号。
+                        const sentences = formatted.match(/[^。！？!?]+[。！？!?]?/g) || [formatted];
+                        formatted = sentences.map(sentence => {
+                            const trimmed = sentence.trim();
+                            if (trimmed.length > 0) {
+                                return `<p>${escapeStoryHTML(trimmed)}</p>`;
+                            }
+                            return '';
+                        }).join('');
+                    }
                 }
                 
                 return formatted;
@@ -3271,6 +3337,7 @@ ${buildAgeEraDirectives(year)}
  * @returns {Promise|void}
  */
             function processEasterEgg(story, extraDetail) {
+                const cleanedStory = sanitizeGeneratedStory(story);
                 // 生成随机数决定是否触发彩蛋
                 const random = Math.random() * 100; // 0-100之间的随机数
                 
@@ -3278,7 +3345,7 @@ ${buildAgeEraDirectives(year)}
                 if (random < 1) {
                     return {
                         type: 'one-line',
-                        story: story, // 保持原故事，由AI生成一句话
+                        story: cleanedStory,
                         endingNote: '有些平行宇宙，只需要一句话，就能让你惦记很久。',
                         cardClass: 'one-line-universe'
                     };
@@ -3288,7 +3355,7 @@ ${buildAgeEraDirectives(year)}
                 if (random < 1.5) {
                     return {
                         type: 'narrow-encounter',
-                        story: story, // 保持原故事，由AI追加内容
+                        story: cleanedStory,
                         endingNote: '刚才那一秒，你们擦肩而过。',
                         cardClass: 'narrow-encounter',
                         hapticDuration: 15 // 延长触感反馈
@@ -3311,7 +3378,7 @@ ${buildAgeEraDirectives(year)}
                 
                 return {
                     type: 'normal',
-                    story: story,
+                    story: cleanedStory,
                     endingNote: endingNote,
                     cardClass: '',
                     hapticDuration: 10
@@ -4002,7 +4069,7 @@ ${buildAgeEraDirectives(year)}
                 // 更新故事内容
                 const storyElement = card.querySelector('.card-story');
                 if (storyElement) {
-                    storyElement.innerHTML = story;
+                    storyElement.innerHTML = formatStory(story);
                     
                     // 添加首字下沉效果
                     const firstParagraph = storyElement.querySelector('p');

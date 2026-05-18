@@ -20,8 +20,114 @@ if (!DEEPSEEK_API_KEY) {
 }
 
 app.use(express.json({ limit: '1mb' }));
+app.use((req, res, next) => {
+  // 作品集投递前频繁更新前端文件，禁用缓存能避免线上仍加载旧 app.js。
+  res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
+  res.setHeader('Pragma', 'no-cache');
+  res.setHeader('Expires', '0');
+  next();
+});
 
 const requestCounts = new Map();
+
+function sanitizeGeneratedStory(rawStory) {
+  let story = String(rawStory || '').trim();
+  if (!story) return '';
+
+  story = story
+    .replace(/\r\n?/g, '\n')
+    .replace(/\\n|\/n/g, '\n')
+    .replace(/<think>[\s\S]*?<\/think>/gi, '')
+    .replace(/```(?:text|markdown|md)?\s*([\s\S]*?)```/gi, '$1')
+    .replace(/\*\*([^*]+)\*\*/g, '$1')
+    .replace(/^\s*>\s?/gm, '')
+    .replace(/\s*(-{3,}|—{2,})\s*/g, '\n')
+    .replace(/\s*(#{1,6}\s*)?(【?(?:用户画像与选择推演|用户画像|选择后果推演|故事后果推演|后果推演|内部完成|内部分析|推理过程|思考过程|故事正文|正文|最终正文|最终输出|正式输出)】?\s*[:：]?)/gi, '\n$1$2')
+    .trim();
+
+  const outputMarkers = [
+    /(?:^|\n)\s*(?:#{1,6}\s*)?【?(?:故事正文|正文|输出正文|最终正文|最终输出|正式输出|正文如下|最终故事)】?\s*[:：]?\s*/gi,
+    /(?:^|\n)\s*(?:#{1,6}\s*)?(?:下面是|以下是)?(?:故事正文|正文|输出正文|最终正文|最终输出|正式输出|正文如下|最终故事)\s*[:：]\s*/gi
+  ];
+
+  outputMarkers.forEach((marker) => {
+    let match;
+    let lastMatch = null;
+    marker.lastIndex = 0;
+    while ((match = marker.exec(story)) !== null) {
+      lastMatch = match;
+    }
+    if (lastMatch) {
+      const candidate = story.slice(lastMatch.index + lastMatch[0].length).trim();
+      if (candidate.length >= 20) {
+        story = candidate;
+      }
+    }
+  });
+
+  const internalTerms = [
+    '心里完成',
+    '不输出',
+    '用户画像与选择推演',
+    '用户画像',
+    '选择后果',
+    '后果推演',
+    '推理过程',
+    '思考过程',
+    '内部分析',
+    '关键选择会改变',
+    '写作优先级'
+  ];
+  const lastInternalIndex = internalTerms.reduce((latest, term) => {
+    const index = story.lastIndexOf(term);
+    return index > latest ? index : latest;
+  }, -1);
+  if (lastInternalIndex >= 0) {
+    const afterInternal = story.slice(lastInternalIndex);
+    const narrativeMatch = afterInternal.match(/(?:^|[。！？\n：:])\s*((?:你|他|她)(?:在|把|正|刚|又|已经|坐|站|走|回|推开|关掉|打开|拿起|盯着|看见|听见|穿过|拎着|收到|醒来|下意识|终于)[\s\S]*)/);
+    if (narrativeMatch && narrativeMatch[1] && narrativeMatch[1].trim().length >= 20) {
+      story = narrativeMatch[1].trim();
+    }
+  }
+
+  const blockedLinePatterns = [
+    /先在心里完成/i,
+    /不要输出/i,
+    /内部完成/i,
+    /用户画像与选择推演/i,
+    /用户画像/i,
+    /选择后果/i,
+    /后果推演/i,
+    /故事后果/i,
+    /推演/i,
+    /思考过程/i,
+    /推理过程/i,
+    /内部分析/i,
+    /关键选择会改变/i,
+    /写作优先级/i,
+    /可读性要求/i,
+    /创作要求/i,
+    /隐藏要求/i,
+    /风格禁忌/i,
+    /输出格式/i,
+    /系统提示/i,
+    /提示词/i,
+    /作为.*模型/i,
+    /^#{1,6}\s*(分析|思考|推理|内部|计划|步骤|结论|用户画像|后果推演|故事正文)/i,
+    /^[\-*]\s*(先把|再判断|如果用户输入|前三句|每段都|少写|不要连续|只输出)/i
+  ];
+
+  return story
+    .split(/\n+/)
+    .map(line => line.trim())
+    .filter(line => line && !blockedLinePatterns.some(pattern => pattern.test(line)))
+    .join('\n')
+    .replace(/^(?:好的|当然|明白|以下是|下面是)[，,。\s]*/i, '')
+    .replace(/^(?:#{1,6}\s*)?(?:故事正文|正文|最终输出|最终正文|正式输出|正文如下)\s*[:：]\s*/i, '')
+    .replace(/^["“”'‘’\s]+|["“”'‘’\s]+$/g, '')
+    .replace(/\n{3,}/g, '\n\n')
+    .trim();
+}
 
 setInterval(() => {
   const now = Date.now();
@@ -84,6 +190,9 @@ app.post('/api/deepseek', async (req, res) => {
     }
 
     const data = await response.json();
+    if (data?.choices?.[0]?.message?.content) {
+      data.choices[0].message.content = sanitizeGeneratedStory(data.choices[0].message.content);
+    }
     res.json(data);
   } catch (error) {
     console.error('API proxy error:', error);
@@ -93,7 +202,8 @@ app.post('/api/deepseek', async (req, res) => {
 
 app.use(express.static(__dirname, {
   extensions: ['html'],
-  maxAge: '5m'
+  maxAge: 0,
+  etag: false
 }));
 
 app.get('*', (req, res) => {
